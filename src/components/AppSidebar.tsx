@@ -21,6 +21,7 @@ import {
   Moon,
   Sun,
   Ticket,
+  Landmark,
 } from "lucide-react"
 import { Link, useLocation } from "react-router"
 import { useState, useEffect } from "react"
@@ -48,6 +49,11 @@ const navItems = [
     title: "Billing & Invoices",
     url: "/billing-invoices",
     icon: Receipt,
+  },
+  {
+    title: "Bank Accounts",
+    url: "/bank-accounts",
+    icon: Landmark,
   },
   {
     title: "Plans & Pricing",

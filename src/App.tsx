@@ -15,6 +15,10 @@ import Subscriptions from "@/pages/Subscriptions"
 import Coupons from "@/pages/Coupons"
 import CouponDetails from "@/pages/CouponDetails"
 import BillingInvoices from "@/pages/BillingInvoices"
+import BankAccounts from "@/pages/BankAccounts"
+import CreateBankAccount from "@/pages/CreateBankAccount"
+import EditBankAccount from "@/pages/EditBankAccount"
+import BankAccountDetails from "@/pages/BankAccountDetails"
 
 import PlansPricing from "@/pages/PlansPricing"
 import CreatePackage from "@/pages/CreatePackage"
@@ -57,6 +61,15 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith("/coupons/")) {
       return "Coupon Details"
     }
+    if (pathname.startsWith("/bank-accounts/") && !pathname.includes("/create") && !pathname.includes("/edit")) {
+      return "Bank Account Details"
+    }
+    if (pathname === "/bank-accounts/create") {
+      return "Add New Bank Account"
+    }
+    if (pathname.includes("/bank-accounts") && pathname.includes("/edit")) {
+      return "Edit Bank Account"
+    }
     if (pathname.includes("/packages/create") || pathname.includes("/plans-pricing/create")) {
       return "Create Package"
     }
@@ -79,6 +92,8 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
         return "Coupons"
       case "/billing-invoices":
         return "Billing & Invoices"
+      case "/bank-accounts":
+        return "Bank Accounts"
       case "/reports":
         return "Reports"
       case "/profile":
@@ -143,6 +158,11 @@ function AppRoutes() {
                 <Route path="/coupons" element={<Coupons />} />
                 <Route path="/coupons/:id" element={<CouponDetails />} />
                 <Route path="/billing-invoices" element={<BillingInvoices />} />
+                <Route path="/bank-accounts" element={<BankAccounts />} />
+                <Route path="/bank-accounts/create" element={<CreateBankAccount />} />
+                <Route path="/bank-accounts/:id" element={<BankAccountDetails />} />
+                <Route path="/bank-accounts/:id/edit" element={<EditBankAccount />} />
+                <Route path="/bank-accounts/edit/:id" element={<EditBankAccount />} />
 
                 <Route path="/plans-pricing" element={<PlansPricing />} />
                 <Route path="/plans-pricing/create" element={<CreatePackage />} />
