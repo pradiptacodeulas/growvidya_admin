@@ -34,26 +34,8 @@ import {
   FileText,
   AlertCircle,
   RefreshCw,
-  Clock,
 } from "lucide-react"
 import { toast } from "sonner"
-
-function formatDate(dateStr?: string | null) {
-  if (!dateStr) return "—"
-  try {
-    const d = new Date(dateStr.replace(" ", "T"))
-    if (isNaN(d.getTime())) return dateStr
-    return d.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  } catch {
-    return dateStr
-  }
-}
 
 export default function BankAccountDetails() {
   const { id } = useParams<{ id: string }>()
@@ -506,38 +488,6 @@ export default function BankAccountDetails() {
             </CardContent>
           </Card>
 
-          {/* System Audit & Metadata */}
-          <Card className="border border-border/80 shadow-xs">
-            <CardHeader className="pb-3 border-b border-border/50 bg-muted/20">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
-                <Clock className="h-4 w-4 text-primary" />
-                <span>Account Audit Details</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 space-y-3 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">System ID:</span>
-                <span className="font-mono font-bold text-foreground">#{account.id}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Primary Default:</span>
-                <span className="font-semibold text-foreground">{isDefault ? "Yes" : "No"}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Current Status:</span>
-                <span className="font-semibold text-foreground">{isActive ? "Active" : "Inactive"}</span>
-              </div>
-              <div className="h-px bg-border/60" />
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Created:</span>
-                <span className="text-foreground">{formatDate(account.created_at)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Last Updated:</span>
-                <span className="text-foreground">{formatDate(account.updated_at)}</span>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
 
