@@ -1,0 +1,177 @@
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+} from "@/components/ui/sidebar"
+import {
+  LayoutDashboard,
+  School,
+  Receipt,
+  CreditCard,
+  BarChart3,
+  Settings,
+  Moon,
+  Sun,
+  Ticket,
+} from "lucide-react"
+import { Link, useLocation } from "react-router"
+import { useState, useEffect } from "react"
+import logoLight from "@/assets/logo_light.png"
+import logoDark from "@/assets/logo_dark.png"
+import smallLogo from "@/assets/small_logo.jpg"
+
+const navItems = [
+  {
+    title: "Overview",
+    url: "/overview",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Subscriptions",
+    url: "/subscriptions",
+    icon: School,
+  },
+  {
+    title: "Coupons",
+    url: "/coupons",
+    icon: Ticket,
+  },
+  {
+    title: "Billing & Invoices",
+    url: "/billing-invoices",
+    icon: Receipt,
+  },
+  {
+    title: "Plans & Pricing",
+    url: "/plans-pricing",
+    icon: CreditCard,
+  },
+  {
+    title: "Reports",
+    url: "/reports",
+    icon: BarChart3,
+  },
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Settings,
+  },
+]
+
+export function AppSidebar() {
+  const location = useLocation()
+
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("growvidya-theme")
+      if (saved) return saved === "dark"
+      return document.documentElement.classList.contains("dark")
+    }
+    return false
+  })
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark")
+      localStorage.setItem("growvidya-theme", "dark")
+    } else {
+      document.documentElement.classList.remove("dark")
+      localStorage.setItem("growvidya-theme", "light")
+    }
+  }, [isDark])
+
+  const toggleTheme = () => {
+    setIsDark((prev) => !prev)
+  }
+
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="h-14 border-b flex items-center justify-center px-4 group-data-[collapsible=icon]:px-0">
+        <Link
+          to="/overview"
+          className="flex items-center justify-center transition-opacity hover:opacity-85 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md"
+          title="Growvidya - Back to Home"
+        >
+          {/* Small logo for collapsed sidebar */}
+          <img
+            src={smallLogo}
+            alt="Growvidya"
+            className="hidden w-8 aspect-square object-contain rounded-md shrink-0 group-data-[collapsible=icon]:block"
+          />
+
+          {/* Full logo for expanded sidebar */}
+          <div className="flex items-center justify-center group-data-[collapsible=icon]:hidden">
+            <img
+              src={isDark ? logoDark : logoLight}
+              alt="Growvidya"
+              className="w-[145px] object-contain"
+            />
+          </div>
+        </Link>
+      </SidebarHeader>
+
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs font-semibold tracking-wider text-muted-foreground/75 px-3 mb-1">
+            Menu
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-1">
+              {navItems.map((item) => {
+                const isActive = location.pathname === item.url
+                const Icon = item.icon
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      isActive={isActive}
+                      tooltip={item.title}
+                      className="h-9 px-3 text-[14px] font-medium gap-3 transition-colors [&>svg]:size-[18px]"
+                      render={<Link to={item.url} />}
+                    >
+                      <Icon className="shrink-0" />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter className="border-t p-2">
+        <SidebarMenu className="gap-1">
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={toggleTheme}
+              tooltip="Toggle Theme"
+              className="h-9 px-3 text-[14px] font-medium gap-3 [&>svg]:size-[18px]"
+            >
+              {isDark ? (
+                <>
+                  <Sun className="shrink-0" />
+                  <span>Light Mode</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="shrink-0" />
+                  <span>Dark Mode</span>
+                </>
+              )}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+
+      <SidebarRail />
+    </Sidebar>
+  )
+}
