@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router"
 import { useAppSelector } from "@/store/store"
 import {
@@ -39,10 +39,7 @@ import {
   Star,
   Pencil,
   Trash2,
-  CheckCircle2,
-  QrCode,
   Eye,
-  Building2,
   X,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -153,14 +150,6 @@ export default function BankAccounts() {
     }
   }
 
-  // Metrics
-  const stats = useMemo(() => {
-    const total = accounts.length
-    const active = accounts.filter((a) => Boolean(a.status)).length
-    const defaultAcc = accounts.find((a) => Boolean(a.is_default))
-    const upiCount = accounts.filter((a) => Boolean(a.upi_id)).length
-    return { total, active, defaultAcc, upiCount }
-  }, [accounts])
 
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -205,76 +194,6 @@ export default function BankAccounts() {
         </div>
       </div>
 
-      {/* KPI Stats Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border border-border/80 shadow-xs">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">Total Accounts</p>
-              <h3 className="text-2xl font-bold mt-1 tracking-tight text-foreground">
-                {isLoading ? <Skeleton className="h-8 w-12" /> : stats.total}
-              </h3>
-              <p className="text-[11px] text-muted-foreground mt-1">Configured in system</p>
-            </div>
-            <div className="p-3 bg-muted/60 rounded-xl text-foreground/80">
-              <Building2 className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/80 shadow-xs">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">Active Accounts</p>
-              <h3 className="text-2xl font-bold mt-1 tracking-tight text-emerald-600 dark:text-emerald-400">
-                {isLoading ? <Skeleton className="h-8 w-12" /> : stats.active}
-              </h3>
-              <p className="text-[11px] text-muted-foreground mt-1">Available for school remittance</p>
-            </div>
-            <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl">
-              <CheckCircle2 className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/80 shadow-xs">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="truncate pr-2">
-              <p className="text-xs font-medium text-muted-foreground">Primary Default</p>
-              <h3 className="text-sm font-bold mt-1 tracking-tight text-foreground truncate max-w-[170px]">
-                {isLoading ? (
-                  <Skeleton className="h-6 w-24" />
-                ) : stats.defaultAcc ? (
-                  stats.defaultAcc.account_title
-                ) : (
-                  <span className="text-muted-foreground font-normal">None Set</span>
-                )}
-              </h3>
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1 truncate">
-                {stats.defaultAcc ? stats.defaultAcc.bank_name : "Action needed"}
-              </p>
-            </div>
-            <div className="p-3 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl shrink-0">
-              <Star className="h-5 w-5 fill-amber-500/30" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/80 shadow-xs">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">UPI Enabled</p>
-              <h3 className="text-2xl font-bold mt-1 tracking-tight text-blue-600 dark:text-blue-400">
-                {isLoading ? <Skeleton className="h-8 w-12" /> : stats.upiCount}
-              </h3>
-              <p className="text-[11px] text-muted-foreground mt-1">Instant VPA handle mapped</p>
-            </div>
-            <div className="p-3 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl">
-              <QrCode className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Filters Bar */}
       <Card className="border border-border/70 shadow-xs bg-card/60 backdrop-blur-xs">
