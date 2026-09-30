@@ -71,3 +71,18 @@ export interface SingleCouponApiResponse {
   errors?: unknown
 }
 
+export interface CreateCouponPayload {
+  code: string
+  description?: string
+  discount_type: DiscountType | string
+  discount_value: number | string
+  min_order_amount?: number | string | null
+  max_discount_amount?: number | string | null
+  start_date?: string | null
+  end_date?: string | null
+  max_uses?: number | string | null
+  status?: number
+}
+
+export interface UpdateCouponPayload extends Partial<CreateCouponPayload> {}
+

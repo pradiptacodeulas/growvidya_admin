@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react"
 import { useParams, useNavigate, Link } from "react-router"
 import { useAppSelector } from "@/store/store"
-import { fetchCouponByIdApi } from "@/services/couponService"
+import {
+  fetchCouponByIdApi,
+  deleteCouponApi,
+  toggleCouponStatusApi,
+} from "@/services/couponService"
 import type { CouponDetail } from "@/types/coupon"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +20,14 @@ import {
   TableCell,
 } from "@/components/ui/table"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
   ChevronRight,
   Ticket,
   Copy,
@@ -25,8 +37,11 @@ import {
   AlertCircle,
   RefreshCw,
   ShoppingBag,
-  ExternalLink,
+  Pencil,
+  Trash2,
+  Loader2,
 } from "lucide-react"
+import { toast } from "sonner"
 
 function formatCurrency(val?: string | number | null) {
   if (val === null || val === undefined || val === "") return "—"
@@ -140,6 +155,38 @@ export default function CouponDetails() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [isSubmittingDelete, setIsSubmittingDelete] = useState(false)
+
+  const handleToggleStatus = async () => {
+    if (!token || !coupon) return
+    const nextStatus = coupon.status === 1 ? 0 : 1
+    try {
+      await toggleCouponStatusApi(token, coupon.id, nextStatus)
+      toast.success(`Coupon marked as ${nextStatus === 1 ? "Active" : "Inactive"}.`)
+      setCoupon((prev) => (prev ? { ...prev, status: nextStatus } : null))
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to toggle status."
+      toast.error(msg)
+    }
+  }
+
+  const handleDeleteSubmit = async () => {
+    if (!token || !coupon) return
+    setIsSubmittingDelete(true)
+    try {
+      await deleteCouponApi(token, coupon.id)
+      toast.success("Coupon deleted successfully.")
+      setIsDeleteOpen(false)
+      navigate("/coupons")
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to delete coupon."
+      toast.error(msg)
+    } finally {
+      setIsSubmittingDelete(false)
+    }
+  }
+
   const isPercentage = coupon?.discount_type === "percentage"
   const discountFormatted = coupon
     ? isPercentage
@@ -183,6 +230,30 @@ export default function CouponDetails() {
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
             {isLoading ? "Refreshing..." : "Refresh"}
           </Button>
+
+          {coupon && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/coupons/${coupon.id}/edit`)}
+                className="gap-1.5 h-9 text-xs font-semibold cursor-pointer"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                <span>Edit Coupon</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsDeleteOpen(true)}
+                className="gap-1.5 h-9 text-xs font-semibold text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Delete</span>
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -276,23 +347,30 @@ export default function CouponDetails() {
                     )}
                   </button>
 
-                  {coupon.status === 1 ? (
-                    <Badge
-                      variant="default"
-                      className="gap-1.5 py-1 px-3 text-xs font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/30"
-                    >
-                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                      Active
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="secondary"
-                      className="gap-1.5 py-1 px-3 text-xs font-semibold text-muted-foreground"
-                    >
-                      <XCircle className="h-3.5 w-3.5" />
-                      Inactive
-                    </Badge>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleToggleStatus}
+                    className="cursor-pointer transition-transform active:scale-95"
+                    title={`Click to mark coupon as ${coupon.status === 1 ? "Inactive" : "Active"}`}
+                  >
+                    {coupon.status === 1 ? (
+                      <Badge
+                        variant="default"
+                        className="gap-1.5 py-1 px-3 text-xs font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25 border-emerald-500/30"
+                      >
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                        Active
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="secondary"
+                        className="gap-1.5 py-1 px-3 text-xs font-semibold text-muted-foreground hover:bg-muted"
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        Inactive
+                      </Badge>
+                    )}
+                  </button>
 
                   {isExpired && (
                     <Badge variant="destructive" className="text-xs">
@@ -508,40 +586,56 @@ export default function CouponDetails() {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Quick Actions Card */}
-              <Card className="border-border/70 shadow-sm bg-muted/20">
-                <CardContent className="p-5 space-y-3">
-                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
-                    Quick Actions
-                  </h4>
-                  <div className="space-y-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCopyCode}
-                      className="w-full justify-start gap-2 h-9 text-xs font-semibold cursor-pointer"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      {copied ? "Coupon Code Copied!" : "Copy Coupon Code"}
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate("/coupons")}
-                      className="w-full justify-start gap-2 h-9 text-xs font-semibold cursor-pointer"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      View All Coupons List
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           </div>
         </div>
       ) : null}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              <span>Delete Coupon?</span>
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete coupon{" "}
+              <strong className="text-foreground">{coupon?.code}</strong>?
+              This will permanently revoke this coupon.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="pt-3">
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteOpen(false)}
+              disabled={isSubmittingDelete}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteSubmit}
+              disabled={isSubmittingDelete}
+              className="cursor-pointer gap-1.5"
+            >
+              {isSubmittingDelete ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete Coupon</span>
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

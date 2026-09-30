@@ -13,6 +13,8 @@ import Login from "@/pages/Login"
 import Overview from "@/pages/Overview"
 import Subscriptions from "@/pages/Subscriptions"
 import Coupons from "@/pages/Coupons"
+import CreateCoupon from "@/pages/CreateCoupon"
+import EditCoupon from "@/pages/EditCoupon"
 import CouponDetails from "@/pages/CouponDetails"
 import BillingInvoices from "@/pages/BillingInvoices"
 import BankAccounts from "@/pages/BankAccounts"
@@ -58,6 +60,12 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
   }, [dispatch, isAuthenticated])
 
   const getPageTitle = (pathname: string) => {
+    if (pathname === "/coupons/create") {
+      return "Create Coupon"
+    }
+    if (pathname.includes("/coupons") && pathname.includes("/edit")) {
+      return "Edit Coupon"
+    }
     if (pathname.startsWith("/coupons/")) {
       return "Coupon Details"
     }
@@ -156,7 +164,10 @@ function AppRoutes() {
                 <Route path="/subscriptions" element={<Subscriptions />} />
                 <Route path="/schools-subscriptions" element={<Navigate to="/subscriptions" replace />} />
                 <Route path="/coupons" element={<Coupons />} />
+                <Route path="/coupons/create" element={<CreateCoupon />} />
                 <Route path="/coupons/:id" element={<CouponDetails />} />
+                <Route path="/coupons/:id/edit" element={<EditCoupon />} />
+                <Route path="/coupons/edit/:id" element={<EditCoupon />} />
                 <Route path="/billing-invoices" element={<BillingInvoices />} />
                 <Route path="/bank-accounts" element={<BankAccounts />} />
                 <Route path="/bank-accounts/create" element={<CreateBankAccount />} />

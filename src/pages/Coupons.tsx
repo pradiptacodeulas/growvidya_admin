@@ -1,7 +1,11 @@
 import { useState, useEffect, useMemo } from "react"
 import { useNavigate } from "react-router"
 import { useAppSelector } from "@/store/store"
-import { fetchCouponsApi } from "@/services/couponService"
+import {
+  fetchCouponsApi,
+  deleteCouponApi,
+  toggleCouponStatusApi,
+} from "@/services/couponService"
 import type { Coupon, PaginationInfo } from "@/types/coupon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,7 +20,14 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table"
-
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import {
   Ticket,
   Search,
@@ -37,7 +48,12 @@ import {
   ChevronsRight,
   X,
   Eye,
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2,
 } from "lucide-react"
+import { toast } from "sonner"
 
 
 function formatCurrency(val?: string | number | null) {
@@ -84,8 +100,56 @@ export default function Coupons() {
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
+  // Delete Modal & Status Actions State
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null)
+  const [isSubmittingDelete, setIsSubmittingDelete] = useState(false)
+
   const handleViewCoupon = (id: number) => {
     navigate(`/coupons/${id}`)
+  }
+
+  const handleEditCoupon = (id: number) => {
+    navigate(`/coupons/${id}/edit`)
+  }
+
+  const openDeleteDialog = (coupon: Coupon) => {
+    setSelectedCoupon(coupon)
+    setIsDeleteOpen(true)
+  }
+
+  const handleDeleteSubmit = async () => {
+    if (!token || !selectedCoupon) return
+    setIsSubmittingDelete(true)
+    try {
+      await deleteCouponApi(token, selectedCoupon.id)
+      toast.success(`Coupon "${selectedCoupon.code}" deleted successfully.`)
+      setIsDeleteOpen(false)
+      setSelectedCoupon(null)
+      setRefreshTrigger((prev) => prev + 1)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to delete coupon."
+      toast.error(msg)
+    } finally {
+      setIsSubmittingDelete(false)
+    }
+  }
+
+  const handleToggleStatus = async (coupon: Coupon) => {
+    if (!token) return
+    const nextStatus = coupon.status === 1 ? 0 : 1
+    try {
+      await toggleCouponStatusApi(token, coupon.id, nextStatus)
+      toast.success(
+        `Coupon "${coupon.code}" ${nextStatus === 1 ? "activated" : "deactivated"} successfully.`
+      )
+      setCoupons((prev) =>
+        prev.map((c) => (c.id === coupon.id ? { ...c, status: nextStatus } : c))
+      )
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to toggle status."
+      toast.error(msg)
+    }
   }
 
 
@@ -259,6 +323,15 @@ export default function Coupons() {
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
             {isLoading ? "Refreshing..." : "Refresh"}
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={() => navigate("/coupons/create")}
+            className="gap-1.5 h-9 text-xs font-semibold cursor-pointer shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create Coupon</span>
           </Button>
         </div>
       </div>
@@ -510,7 +583,7 @@ export default function Coupons() {
                         ? "Try adjusting your search query or filters."
                         : "There are currently no discount coupons configured in the system."}
                     </p>
-                    {(searchQuery || statusFilter !== "all" || typeFilter !== "all") && (
+                    {searchQuery || statusFilter !== "all" || typeFilter !== "all" ? (
                       <Button
                         variant="outline"
                         size="sm"
@@ -518,6 +591,15 @@ export default function Coupons() {
                         className="mt-2 text-xs font-semibold cursor-pointer"
                       >
                         Reset all filters
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => navigate("/coupons/create")}
+                        className="mt-2 text-xs font-semibold gap-1.5 cursor-pointer shadow-sm"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Create First Coupon</span>
                       </Button>
                     )}
                   </div>
@@ -646,23 +728,31 @@ export default function Coupons() {
                     {/* Status Badge & Actions */}
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {coupon.status === 1 ? (
-                          <Badge
-                            variant="default"
-                            className="capitalize gap-1 text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/30"
-                          >
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            Active
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="secondary"
-                            className="capitalize gap-1 text-[11px] font-semibold text-muted-foreground"
-                          >
-                            <XCircle className="h-3 w-3" />
-                            Inactive
-                          </Badge>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(coupon)}
+                          title={`Click to mark as ${coupon.status === 1 ? "Inactive" : "Active"}`}
+                          className="cursor-pointer transition-transform active:scale-95"
+                        >
+                          {coupon.status === 1 ? (
+                            <Badge
+                              variant="default"
+                              className="capitalize gap-1 text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25 border-emerald-500/30"
+                            >
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="secondary"
+                              className="capitalize gap-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted"
+                            >
+                              <XCircle className="h-3 w-3" />
+                              Inactive
+                            </Badge>
+                          )}
+                        </button>
+
                         <Button
                           variant="ghost"
                           size="icon"
@@ -671,6 +761,26 @@ export default function Coupons() {
                           title="View coupon details & usages"
                         >
                           <Eye className="h-4 w-4" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                          onClick={() => handleEditCoupon(coupon.id)}
+                          title="Edit coupon"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                          onClick={() => openDeleteDialog(coupon)}
+                          title="Delete coupon"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -781,6 +891,53 @@ export default function Coupons() {
           </div>
         </div>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              <span>Delete Coupon?</span>
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete coupon{" "}
+              <strong className="text-foreground">{selectedCoupon?.code}</strong>?
+              This will permanently revoke this coupon. Previous subscription redemptions
+              will remain intact in billing records.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="pt-3">
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteOpen(false)}
+              disabled={isSubmittingDelete}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteSubmit}
+              disabled={isSubmittingDelete}
+              className="cursor-pointer gap-1.5"
+            >
+              {isSubmittingDelete ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete Coupon</span>
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
