@@ -21,6 +21,8 @@ import BankAccounts from "@/pages/BankAccounts"
 import CreateBankAccount from "@/pages/CreateBankAccount"
 import EditBankAccount from "@/pages/EditBankAccount"
 import BankAccountDetails from "@/pages/BankAccountDetails"
+import AttendanceMachines from "@/pages/AttendanceMachines"
+import RfidCards from "@/pages/RfidCards"
 
 import PlansPricing from "@/pages/PlansPricing"
 import CreatePackage from "@/pages/CreatePackage"
@@ -96,6 +98,10 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
       case "/packages":
       case "/saas-admin/packages":
         return "Plans & Packages"
+      case "/attendance-machines":
+        return "Attendance Machines"
+      case "/rfid-cards":
+        return "RFID Cards"
       case "/coupons":
         return "Coupons"
       case "/billing-invoices":
@@ -163,6 +169,8 @@ function AppRoutes() {
                 <Route path="/overview" element={<Overview />} />
                 <Route path="/subscriptions" element={<Subscriptions />} />
                 <Route path="/schools-subscriptions" element={<Navigate to="/subscriptions" replace />} />
+                <Route path="/attendance-machines" element={<AttendanceMachines />} />
+                <Route path="/rfid-cards" element={<RfidCards />} />
                 <Route path="/coupons" element={<Coupons />} />
                 <Route path="/coupons/create" element={<CreateCoupon />} />
                 <Route path="/coupons/:id" element={<CouponDetails />} />

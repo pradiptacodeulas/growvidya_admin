@@ -9,37 +9,34 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
 import {
   LayoutDashboard,
-  School,
-  Receipt,
+  Layers,
   CreditCard,
+  Cpu,
+  Radio,
+  Receipt,
   BarChart3,
   Settings,
   Moon,
   Sun,
   Ticket,
   Landmark,
+  ChevronDown,
 } from "lucide-react"
 import { Link, useLocation } from "react-router"
 import { useState, useEffect } from "react"
+import { cn } from "@/lib/utils"
 import logoLight from "@/assets/logo_light.png"
 import logoDark from "@/assets/logo_dark.png"
 import smallLogo from "@/assets/small_logo.jpg"
 
 const navItems = [
-  {
-    title: "Overview",
-    url: "/overview",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Subscriptions",
-    url: "/subscriptions",
-    icon: School,
-  },
   {
     title: "Coupons",
     url: "/coupons",
@@ -56,11 +53,6 @@ const navItems = [
     icon: Landmark,
   },
   {
-    title: "Plans & Pricing",
-    url: "/plans-pricing",
-    icon: CreditCard,
-  },
-  {
     title: "Reports",
     url: "/reports",
     icon: BarChart3,
@@ -74,6 +66,32 @@ const navItems = [
 
 export function AppSidebar() {
   const location = useLocation()
+
+  const isSubscriptionRoute =
+    location.pathname.startsWith("/subscriptions") ||
+    location.pathname.startsWith("/schools-subscriptions") ||
+    location.pathname.startsWith("/plans-pricing") ||
+    location.pathname.startsWith("/packages") ||
+    location.pathname.startsWith("/attendance-machines") ||
+    location.pathname.startsWith("/rfid-cards")
+
+  const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(true)
+
+  useEffect(() => {
+    if (isSubscriptionRoute) {
+      setIsSubscriptionOpen(true)
+    }
+  }, [isSubscriptionRoute])
+
+  const isPlanActive =
+    location.pathname === "/subscriptions" ||
+    location.pathname.startsWith("/plans-pricing") ||
+    location.pathname.startsWith("/packages") ||
+    location.pathname.startsWith("/schools-subscriptions")
+
+  const isAttendanceMachineActive = location.pathname.startsWith("/attendance-machines")
+  const isRfidActive = location.pathname.startsWith("/rfid-cards")
+  const isSubscriptionParentActive = !isSubscriptionOpen && isSubscriptionRoute
 
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== "undefined") {
@@ -131,6 +149,81 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
+              {/* Overview */}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={location.pathname === "/overview"}
+                  tooltip="Overview"
+                  className="h-9 px-3 text-[14px] font-medium gap-3 transition-colors [&>svg]:size-[18px]"
+                  render={<Link to="/overview" />}
+                >
+                  <LayoutDashboard className="shrink-0" />
+                  <span>Overview</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* Subscription Dropdown */}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => setIsSubscriptionOpen((prev) => !prev)}
+                  isActive={isSubscriptionParentActive}
+                  tooltip="Subscription"
+                  className="h-9 px-3 text-[14px] font-medium gap-3 transition-colors [&>svg]:size-[18px] cursor-pointer justify-between"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Layers className="shrink-0" />
+                    <span className="truncate">Subscription</span>
+                  </div>
+                  <ChevronDown
+                    className={cn(
+                      "size-4 shrink-0 transition-transform duration-200 text-muted-foreground group-data-[collapsible=icon]:hidden",
+                      isSubscriptionOpen && "rotate-180"
+                    )}
+                  />
+                </SidebarMenuButton>
+
+                {isSubscriptionOpen && (
+                  <SidebarMenuSub>
+                    {/* Plan Submenu */}
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        isActive={isPlanActive}
+                        className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                        render={<Link to="/subscriptions" />}
+                      >
+                        <CreditCard className="size-3.5 shrink-0" />
+                        <span>Plan</span>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+
+                    {/* Attendance Machine Submenu */}
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        isActive={isAttendanceMachineActive}
+                        className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                        render={<Link to="/attendance-machines" />}
+                      >
+                        <Cpu className="size-3.5 shrink-0" />
+                        <span>Attendance Machine</span>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+
+                    {/* RFID Submenu */}
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        isActive={isRfidActive}
+                        className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                        render={<Link to="/rfid-cards" />}
+                      >
+                        <Radio className="size-3.5 shrink-0" />
+                        <span>RFID</span>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  </SidebarMenuSub>
+                )}
+              </SidebarMenuItem>
+
+              {/* Other Navigation Items */}
               {navItems.map((item) => {
                 const isActive = location.pathname === item.url
                 const Icon = item.icon
