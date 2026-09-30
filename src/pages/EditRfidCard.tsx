@@ -26,7 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  ArrowLeft,
   Radio,
   IndianRupee,
   Layers,
@@ -223,28 +222,16 @@ export default function EditRfidCard() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
-      {/* Top Header & Breadcrumb */}
+      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/60">
-        <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/rfid-cards")}
-            className="cursor-pointer size-9 rounded-lg hover:bg-muted"
-            title="Back to RFID Cards"
-          >
-            <ArrowLeft className="size-4" />
-          </Button>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <Radio className="size-6 text-primary" />
-              Edit RFID Card & Tag
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Update smart identification card specifications, frequencies, and pricing.
-            </p>
-          </div>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+            <Radio className="size-6 text-primary" />
+            Edit RFID Card & Tag
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            Update smart identification card specifications, frequencies, and pricing.
+          </p>
         </div>
 
 

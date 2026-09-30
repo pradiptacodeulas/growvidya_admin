@@ -82,9 +82,7 @@ export default function AttendanceMachines() {
   // Status toggle in-progress ID
   const [togglingId, setTogglingId] = useState<number | null>(null)
 
-  // Details Modal
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
-  const [viewingMachine, setViewingMachine] = useState<AttendanceMachine | null>(null)
+
 
   // Delete Modal
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -124,11 +122,7 @@ export default function AttendanceMachines() {
     loadMachines(true)
   }, [token, debouncedSearch, statusFilter])
 
-  // Open View Details
-  const handleOpenView = (machine: AttendanceMachine) => {
-    setViewingMachine(machine)
-    setIsDetailsOpen(true)
-  }
+
 
   // Toggle status
   const handleToggleStatus = async (machine: AttendanceMachine) => {
@@ -441,7 +435,7 @@ export default function AttendanceMachines() {
                         </span>
                       </div>
                       <h3
-                        onClick={() => handleOpenView(machine)}
+                        onClick={() => navigate(`/attendance-machines/${machine.id}`)}
                         className="text-base font-semibold text-foreground line-clamp-1 mt-0.5 cursor-pointer hover:text-primary transition-colors"
                       >
                         {machine.machine_name}
@@ -507,7 +501,7 @@ export default function AttendanceMachines() {
                       variant="ghost"
                       size="icon"
                       title="View Details"
-                      onClick={() => handleOpenView(machine)}
+                      onClick={() => navigate(`/attendance-machines/${machine.id}`)}
                       className="size-8 cursor-pointer"
                     >
                       <Eye className="size-3.5" />
@@ -566,7 +560,7 @@ export default function AttendanceMachines() {
                     <TableRow key={machine.id}>
                       <TableCell>
                         <div
-                          onClick={() => handleOpenView(machine)}
+                          onClick={() => navigate(`/attendance-machines/${machine.id}`)}
                           className="size-12 rounded-lg bg-muted border border-border/60 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer hover:opacity-85"
                         >
                           {imageUrl ? (
@@ -587,7 +581,7 @@ export default function AttendanceMachines() {
                       <TableCell>
                         <div className="space-y-0.5">
                           <p
-                            onClick={() => handleOpenView(machine)}
+                            onClick={() => navigate(`/attendance-machines/${machine.id}`)}
                             className="font-semibold text-foreground text-sm cursor-pointer hover:text-primary transition-colors"
                           >
                             {machine.machine_name}
@@ -671,7 +665,7 @@ export default function AttendanceMachines() {
                             variant="ghost"
                             size="icon"
                             title="View Details"
-                            onClick={() => handleOpenView(machine)}
+                            onClick={() => navigate(`/attendance-machines/${machine.id}`)}
                             className="size-8 cursor-pointer"
                           >
                             <Eye className="size-4" />
@@ -710,154 +704,7 @@ export default function AttendanceMachines() {
         </Card>
       )}
 
-      {/* VIEW DETAILS MODAL DIALOG */}
-      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
-          {viewingMachine && (
-            <>
-              <DialogHeader>
-                <div className="flex items-center justify-between gap-3 pr-6">
-                  <DialogTitle className="text-lg font-bold text-foreground">
-                    {viewingMachine.machine_name}
-                  </DialogTitle>
-                  <Badge
-                    variant="secondary"
-                    className={`text-xs font-semibold px-2 py-0.5 ${
-                      viewingMachine.status === 1
-                        ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {viewingMachine.status === 1 ? "Active" : "Inactive"}
-                  </Badge>
-                </div>
-                <DialogDescription className="text-xs font-mono">
-                  Model SKU: {viewingMachine.model_number}
-                </DialogDescription>
-              </DialogHeader>
 
-              <div className="space-y-4 pt-2">
-                {/* Photo Preview */}
-                <div className="h-48 rounded-xl bg-muted/30 border border-border/60 flex items-center justify-center overflow-hidden">
-                  {getFullImageUrl(viewingMachine.machine_image) ? (
-                    <img
-                      src={getFullImageUrl(viewingMachine.machine_image)!}
-                      alt={viewingMachine.machine_name}
-                      className="size-full object-contain p-4"
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
-                      <Cpu className="size-12 stroke-1 text-muted-foreground/50" />
-                      <span className="text-xs">No image uploaded</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Details Grid */}
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
-                    <span className="text-muted-foreground">Brand</span>
-                    <p className="font-semibold text-foreground text-sm">
-                      {viewingMachine.brand || "—"}
-                    </p>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
-                    <span className="text-muted-foreground">Device Type</span>
-                    <p className="font-semibold text-foreground text-sm uppercase">
-                      {viewingMachine.machine_type}
-                    </p>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
-                    <span className="text-muted-foreground">Unit Price</span>
-                    <p className="font-semibold text-foreground text-sm">
-                      ₹{Number(viewingMachine.unit_price || 0).toLocaleString("en-IN")}
-                    </p>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
-                    <span className="text-muted-foreground">AMC Price (Annual)</span>
-                    <p className="font-semibold text-foreground text-sm">
-                      {viewingMachine.amc_price
-                        ? `₹${Number(viewingMachine.amc_price).toLocaleString("en-IN")}`
-                        : "—"}
-                    </p>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
-                    <span className="text-muted-foreground">User Capacity</span>
-                    <p className="font-semibold text-foreground text-sm">
-                      {viewingMachine.user_capacity
-                        ? Number(viewingMachine.user_capacity).toLocaleString()
-                        : "1,000"}
-                    </p>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
-                    <span className="text-muted-foreground">Log Capacity</span>
-                    <p className="font-semibold text-foreground text-sm">
-                      {viewingMachine.log_capacity
-                        ? Number(viewingMachine.log_capacity).toLocaleString()
-                        : "100,000"}
-                    </p>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
-                    <span className="text-muted-foreground">Connectivity</span>
-                    <p className="font-semibold text-foreground text-sm">
-                      {viewingMachine.connectivity || "LAN, Wi-Fi"}
-                    </p>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
-                    <span className="text-muted-foreground">Push Protocol</span>
-                    <p className="font-semibold text-foreground text-sm">
-                      {viewingMachine.push_protocol || "Cloud Push"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Specifications */}
-                {viewingMachine.specifications && (
-                  <div className="p-3.5 rounded-lg bg-muted/20 border border-border/50 space-y-1 text-xs">
-                    <span className="font-semibold text-foreground">Specifications & Notes</span>
-                    <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                      {viewingMachine.specifications}
-                    </p>
-                  </div>
-                )}
-
-                {/* Timestamps */}
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2 border-t border-border/50">
-                  <span>Created: {viewingMachine.created_at || "—"}</span>
-                  <span>Updated: {viewingMachine.updated_at || "—"}</span>
-                </div>
-              </div>
-
-              <DialogFooter className="pt-3 border-t border-border/50">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsDetailsOpen(false)}
-                  className="cursor-pointer"
-                >
-                  Close
-                </Button>
-                <Button
-                  onClick={() => {
-                    setIsDetailsOpen(false)
-                    navigate(`/attendance-machines/${viewingMachine.id}/edit`)
-                  }}
-                  className="gap-1.5 cursor-pointer"
-                >
-                  <Pencil className="size-3.5" />
-                  Edit Device
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* DELETE CONFIRMATION MODAL DIALOG */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>

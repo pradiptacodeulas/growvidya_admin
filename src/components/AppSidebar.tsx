@@ -28,6 +28,7 @@ import {
   Ticket,
   Landmark,
   ChevronDown,
+  HardDrive,
 } from "lucide-react"
 import { Link, useLocation } from "react-router"
 import { useState, useEffect } from "react"
@@ -73,7 +74,8 @@ export function AppSidebar() {
     location.pathname.startsWith("/plans-pricing") ||
     location.pathname.startsWith("/packages") ||
     location.pathname.startsWith("/attendance-machines") ||
-    location.pathname.startsWith("/rfid-cards")
+    location.pathname.startsWith("/rfid-cards") ||
+    location.pathname.startsWith("/storage-plans")
 
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(true)
 
@@ -91,6 +93,7 @@ export function AppSidebar() {
 
   const isAttendanceMachineActive = location.pathname.startsWith("/attendance-machines")
   const isRfidActive = location.pathname.startsWith("/rfid-cards")
+  const isStoragePlanActive = location.pathname.startsWith("/storage-plans")
   const isSubscriptionParentActive = !isSubscriptionOpen && isSubscriptionRoute
 
   const [isDark, setIsDark] = useState(() => {
@@ -217,6 +220,18 @@ export function AppSidebar() {
                       >
                         <Radio className="size-3.5 shrink-0" />
                         <span>RFID</span>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+
+                    {/* Storage Plan Submenu */}
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        isActive={isStoragePlanActive}
+                        className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                        render={<Link to="/storage-plans" />}
+                      >
+                        <HardDrive className="size-3.5 shrink-0" />
+                        <span>Storage Plan</span>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   </SidebarMenuSub>

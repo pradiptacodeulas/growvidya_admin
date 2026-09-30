@@ -26,7 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  ArrowLeft,
   Cpu,
   IndianRupee,
   Layers,
@@ -234,60 +233,16 @@ export default function EditAttendanceMachine() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
-      {/* Top Header & Breadcrumb */}
+      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/60">
-        <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/attendance-machines")}
-            className="cursor-pointer size-9 rounded-lg hover:bg-muted"
-            title="Back to Attendance Machines"
-          >
-            <ArrowLeft className="size-4" />
-          </Button>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <Cpu className="size-6 text-primary" />
-              Edit Attendance Machine
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Update technical specifications, pricing, and hardware configurations.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => navigate("/attendance-machines")}
-            disabled={isSubmitting}
-            className="cursor-pointer"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="gap-2 cursor-pointer shadow-xs"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Updating...
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="size-4" />
-                Update Machine
-              </>
-            )}
-          </Button>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+            <Cpu className="size-6 text-primary" />
+            Edit Attendance Machine
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            Update technical specifications, pricing, and hardware configurations.
+          </p>
         </div>
       </div>
 

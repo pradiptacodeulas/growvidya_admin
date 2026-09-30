@@ -24,9 +24,13 @@ import BankAccountDetails from "@/pages/BankAccountDetails"
 import AttendanceMachines from "@/pages/AttendanceMachines"
 import CreateAttendanceMachine from "@/pages/CreateAttendanceMachine"
 import EditAttendanceMachine from "@/pages/EditAttendanceMachine"
+import AttendanceMachineDetails from "@/pages/AttendanceMachineDetails"
 import RfidCards from "@/pages/RfidCards"
 import CreateRfidCard from "@/pages/CreateRfidCard"
 import EditRfidCard from "@/pages/EditRfidCard"
+import StoragePlans from "@/pages/StoragePlans"
+import CreateStoragePlan from "@/pages/CreateStoragePlan"
+import EditStoragePlan from "@/pages/EditStoragePlan"
 
 import PlansPricing from "@/pages/PlansPricing"
 import CreatePackage from "@/pages/CreatePackage"
@@ -84,6 +88,9 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     if (pathname.includes("/bank-accounts") && pathname.includes("/edit")) {
       return "Edit Bank Account"
     }
+    if (pathname.startsWith("/attendance-machines/") && !pathname.includes("/create") && !pathname.includes("/edit")) {
+      return "Attendance Machine Details"
+    }
     if (pathname === "/attendance-machines/create") {
       return "Add New Attendance Machine"
     }
@@ -95,6 +102,12 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     }
     if (pathname.includes("/rfid-cards") && pathname.includes("/edit")) {
       return "Edit RFID Card"
+    }
+    if (pathname === "/storage-plans/create") {
+      return "Add New Storage Plan"
+    }
+    if (pathname.includes("/storage-plans") && pathname.includes("/edit")) {
+      return "Edit Storage Plan"
     }
     if (pathname.includes("/packages/create") || pathname.includes("/plans-pricing/create")) {
       return "Create Package"
@@ -118,6 +131,8 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
         return "Attendance Machines"
       case "/rfid-cards":
         return "RFID Cards"
+      case "/storage-plans":
+        return "Storage Plans"
       case "/coupons":
         return "Coupons"
       case "/billing-invoices":
@@ -187,12 +202,17 @@ function AppRoutes() {
                 <Route path="/schools-subscriptions" element={<Navigate to="/subscriptions" replace />} />
                 <Route path="/attendance-machines" element={<AttendanceMachines />} />
                 <Route path="/attendance-machines/create" element={<CreateAttendanceMachine />} />
+                <Route path="/attendance-machines/:id" element={<AttendanceMachineDetails />} />
                 <Route path="/attendance-machines/:id/edit" element={<EditAttendanceMachine />} />
                 <Route path="/attendance-machines/edit/:id" element={<EditAttendanceMachine />} />
                 <Route path="/rfid-cards" element={<RfidCards />} />
                 <Route path="/rfid-cards/create" element={<CreateRfidCard />} />
                 <Route path="/rfid-cards/:id/edit" element={<EditRfidCard />} />
                 <Route path="/rfid-cards/edit/:id" element={<EditRfidCard />} />
+                <Route path="/storage-plans" element={<StoragePlans />} />
+                <Route path="/storage-plans/create" element={<CreateStoragePlan />} />
+                <Route path="/storage-plans/:id/edit" element={<EditStoragePlan />} />
+                <Route path="/storage-plans/edit/:id" element={<EditStoragePlan />} />
                 <Route path="/coupons" element={<Coupons />} />
                 <Route path="/coupons/create" element={<CreateCoupon />} />
                 <Route path="/coupons/:id" element={<CouponDetails />} />
