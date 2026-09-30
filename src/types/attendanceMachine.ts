@@ -25,3 +25,35 @@ export interface AttendanceMachineFilterParams {
   machine_type?: string
   brand?: string
 }
+
+export interface CreateAttendanceMachinePayload {
+  machine_name: string
+  model_number: string
+  brand: string
+  machine_type?: MachineType
+  connectivity?: string
+  user_capacity?: number
+  log_capacity?: number
+  push_protocol?: string
+  unit_price: number | string
+  amc_price?: number | string
+  machine_image?: string | File | null
+  specifications?: string
+  status?: number
+}
+
+export interface UpdateAttendanceMachinePayload {
+  machine_name?: string
+  model_number?: string
+  brand?: string
+  machine_type?: MachineType
+  connectivity?: string
+  user_capacity?: number
+  log_capacity?: number
+  push_protocol?: string
+  unit_price?: number | string
+  amc_price?: number | string
+  machine_image?: string | File | null
+  specifications?: string
+  status?: number
+}

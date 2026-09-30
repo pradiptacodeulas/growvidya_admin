@@ -22,7 +22,11 @@ import CreateBankAccount from "@/pages/CreateBankAccount"
 import EditBankAccount from "@/pages/EditBankAccount"
 import BankAccountDetails from "@/pages/BankAccountDetails"
 import AttendanceMachines from "@/pages/AttendanceMachines"
+import CreateAttendanceMachine from "@/pages/CreateAttendanceMachine"
+import EditAttendanceMachine from "@/pages/EditAttendanceMachine"
 import RfidCards from "@/pages/RfidCards"
+import CreateRfidCard from "@/pages/CreateRfidCard"
+import EditRfidCard from "@/pages/EditRfidCard"
 
 import PlansPricing from "@/pages/PlansPricing"
 import CreatePackage from "@/pages/CreatePackage"
@@ -79,6 +83,18 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     }
     if (pathname.includes("/bank-accounts") && pathname.includes("/edit")) {
       return "Edit Bank Account"
+    }
+    if (pathname === "/attendance-machines/create") {
+      return "Add New Attendance Machine"
+    }
+    if (pathname.includes("/attendance-machines") && pathname.includes("/edit")) {
+      return "Edit Attendance Machine"
+    }
+    if (pathname === "/rfid-cards/create") {
+      return "Add New RFID Card"
+    }
+    if (pathname.includes("/rfid-cards") && pathname.includes("/edit")) {
+      return "Edit RFID Card"
     }
     if (pathname.includes("/packages/create") || pathname.includes("/plans-pricing/create")) {
       return "Create Package"
@@ -170,7 +186,13 @@ function AppRoutes() {
                 <Route path="/subscriptions" element={<Subscriptions />} />
                 <Route path="/schools-subscriptions" element={<Navigate to="/subscriptions" replace />} />
                 <Route path="/attendance-machines" element={<AttendanceMachines />} />
+                <Route path="/attendance-machines/create" element={<CreateAttendanceMachine />} />
+                <Route path="/attendance-machines/:id/edit" element={<EditAttendanceMachine />} />
+                <Route path="/attendance-machines/edit/:id" element={<EditAttendanceMachine />} />
                 <Route path="/rfid-cards" element={<RfidCards />} />
+                <Route path="/rfid-cards/create" element={<CreateRfidCard />} />
+                <Route path="/rfid-cards/:id/edit" element={<EditRfidCard />} />
+                <Route path="/rfid-cards/edit/:id" element={<EditRfidCard />} />
                 <Route path="/coupons" element={<Coupons />} />
                 <Route path="/coupons/create" element={<CreateCoupon />} />
                 <Route path="/coupons/:id" element={<CouponDetails />} />

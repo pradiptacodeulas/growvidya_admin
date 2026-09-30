@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router"
 import { useAppSelector } from "@/store/store"
 import {
   fetchRfidCardsApi,
-  toggleRfidCardStatusApi,
   deleteRfidCardApi,
 } from "@/services/rfidCardService"
 import type { RfidCard } from "@/types/rfidCard"
@@ -21,6 +21,13 @@ import {
   TableCell,
 } from "@/components/ui/table"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -37,15 +44,29 @@ import {
   CheckCircle2,
   XCircle,
   Trash2,
-  Power,
   Tag,
   Scan,
   Package,
   X,
+  Plus,
+  Pencil,
 } from "lucide-react"
 import { toast } from "sonner"
 
+const STATUS_FILTER_OPTIONS = [
+  { value: "all", label: "All Statuses" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+]
+
+const STATUS_FILTER_LABELS: Record<string, string> = {
+  all: "All Statuses",
+  active: "Active",
+  inactive: "Inactive",
+}
+
 export default function RfidCards() {
+  const navigate = useNavigate()
   const token = useAppSelector((state) => state.auth.token)
   const [cards, setCards] = useState<RfidCard[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -60,9 +81,6 @@ export default function RfidCards() {
   const [selectedCard, setSelectedCard] = useState<RfidCard | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Status toggle in-progress ID
-  const [togglingId, setTogglingId] = useState<number | null>(null)
-
   // Debounce search
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -71,7 +89,7 @@ export default function RfidCards() {
     return () => clearTimeout(handler)
   }, [searchQuery])
 
-  // Fetch cards
+  // Fetch cards (NO fallback data)
   const loadCards = async (showLoadingState = true) => {
     if (!token) return
     if (showLoadingState) setIsLoading(true)
@@ -95,28 +113,6 @@ export default function RfidCards() {
   useEffect(() => {
     loadCards(true)
   }, [token, debouncedSearch, statusFilter])
-
-  // Toggle status
-  const handleToggleStatus = async (card: RfidCard) => {
-    if (!token || togglingId !== null) return
-    const newStatus = card.status === 1 ? 0 : 1
-    setTogglingId(card.id)
-
-    try {
-      await toggleRfidCardStatusApi(token, card.id, newStatus)
-      setCards((prev) =>
-        prev.map((c) => (c.id === card.id ? { ...c, status: newStatus } : c))
-      )
-      toast.success(
-        `RFID card "${card.card_name}" marked as ${newStatus === 1 ? "Active" : "Inactive"}.`
-      )
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to update RFID card status."
-      toast.error(message)
-    } finally {
-      setTogglingId(null)
-    }
-  }
 
   // Confirm delete
   const handleDeleteConfirm = async () => {
@@ -165,6 +161,15 @@ export default function RfidCards() {
           >
             <RefreshCw className={`size-4 ${isRefreshing ? "animate-spin" : ""}`} />
             Refresh
+          </Button>
+
+          <Button
+            onClick={() => navigate("/rfid-cards/create")}
+            size="sm"
+            className="gap-1.5 cursor-pointer shadow-xs"
+          >
+            <Plus className="size-4" />
+            Add Card
           </Button>
         </div>
       </div>
@@ -233,46 +238,35 @@ export default function RfidCards() {
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <X className="size-3.5" />
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Status Tabs */}
-          <div className="inline-flex rounded-lg border border-border/60 bg-muted/30 p-1">
-            <button
-              onClick={() => setStatusFilter("all")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                statusFilter === "all"
-                  ? "bg-background text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+        <div className="flex items-center gap-3">
+          {/* Status Dropdown using Shadcn UI Select */}
+          <div className="w-40">
+            <Select
+              value={statusFilter}
+              onValueChange={(val) => {
+                if (val) setStatusFilter(val as "all" | "active" | "inactive")
+              }}
+              items={STATUS_FILTER_OPTIONS}
+              itemToStringLabel={(val) => STATUS_FILTER_LABELS[String(val)] || String(val || "")}
             >
-              All
-            </button>
-            <button
-              onClick={() => setStatusFilter("active")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                statusFilter === "active"
-                  ? "bg-background text-emerald-600 dark:text-emerald-400 shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => setStatusFilter("inactive")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                statusFilter === "inactive"
-                  ? "bg-background text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Inactive
-            </button>
+              <SelectTrigger className="h-9 text-xs w-full">
+                <SelectValue placeholder="Filter Status" />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_FILTER_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value} label={opt.label}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* View Mode Toggle */}
@@ -280,7 +274,7 @@ export default function RfidCards() {
             <button
               onClick={() => setViewMode("grid")}
               title="Grid View"
-              className={`p-1.5 rounded-md transition-all ${
+              className={`p-1.5 rounded-md transition-all cursor-pointer ${
                 viewMode === "grid"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -291,7 +285,7 @@ export default function RfidCards() {
             <button
               onClick={() => setViewMode("table")}
               title="Table View"
-              className={`p-1.5 rounded-md transition-all ${
+              className={`p-1.5 rounded-md transition-all cursor-pointer ${
                 viewMode === "table"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -329,6 +323,16 @@ export default function RfidCards() {
                 ? "No RFID cards match the selected filter criteria."
                 : "No RFID cards have been registered in the system yet."}
             </p>
+            {!searchQuery && statusFilter === "all" && (
+              <Button
+                onClick={() => navigate("/rfid-cards/create")}
+                size="sm"
+                className="gap-1.5 cursor-pointer shadow-xs mt-2"
+              >
+                <Plus className="size-4" />
+                Add First Card
+              </Button>
+            )}
           </div>
         </Card>
       ) : viewMode === "grid" ? (
@@ -336,7 +340,6 @@ export default function RfidCards() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {cards.map((card) => {
             const imageUrl = getFullImageUrl(card.card_image || card.rfid_image)
-            const isToggling = togglingId === card.id
 
             return (
               <Card
@@ -431,30 +434,27 @@ export default function RfidCards() {
                 </div>
 
                 {/* Card Actions Footer */}
-                <div className="p-3 bg-muted/20 border-t border-border/50 flex items-center justify-between gap-2">
+                <div className="p-3 bg-muted/20 border-t border-border/50 flex items-center justify-end gap-1">
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleToggleStatus(card)}
-                    disabled={isToggling}
-                    className={`h-8 px-2.5 text-xs gap-1.5 cursor-pointer ${
-                      card.status === 1
-                        ? "text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10"
-                        : "text-emerald-600 hover:bg-emerald-500/10"
-                    }`}
+                    title="Edit"
+                    onClick={() => navigate(`/rfid-cards/${card.id}/edit`)}
+                    className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer gap-1.5"
                   >
-                    <Power className={`size-3.5 ${isToggling ? "animate-spin" : ""}`} />
-                    {card.status === 1 ? "Deactivate" : "Activate"}
+                    <Pencil className="size-3.5" />
+                    Edit
                   </Button>
 
                   <Button
                     variant="ghost"
                     size="sm"
+                    title="Delete"
                     onClick={() => {
                       setSelectedCard(card)
                       setIsDeleteOpen(true)
                     }}
-                    className="h-8 px-2.5 text-xs text-destructive hover:bg-destructive/10 cursor-pointer"
+                    className="h-8 px-2.5 text-xs text-destructive hover:bg-destructive/10 cursor-pointer gap-1.5"
                   >
                     <Trash2 className="size-3.5" />
                     Delete
@@ -483,7 +483,6 @@ export default function RfidCards() {
               <TableBody>
                 {cards.map((card) => {
                   const imageUrl = getFullImageUrl(card.card_image || card.rfid_image)
-                  const isToggling = togglingId === card.id
 
                   return (
                     <TableRow key={card.id}>
@@ -557,17 +556,13 @@ export default function RfidCards() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            title={card.status === 1 ? "Deactivate" : "Activate"}
-                            onClick={() => handleToggleStatus(card)}
-                            disabled={isToggling}
-                            className={`size-8 cursor-pointer ${
-                              card.status === 1
-                                ? "text-muted-foreground hover:text-amber-600"
-                                : "text-emerald-600"
-                            }`}
+                            title="Edit"
+                            onClick={() => navigate(`/rfid-cards/${card.id}/edit`)}
+                            className="size-8 text-muted-foreground hover:text-foreground cursor-pointer"
                           >
-                            <Power className={`size-4 ${isToggling ? "animate-spin" : ""}`} />
+                            <Pencil className="size-4" />
                           </Button>
+
                           <Button
                             variant="ghost"
                             size="icon"

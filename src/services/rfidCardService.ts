@@ -2,11 +2,14 @@ import { API_BASE_URL, SERVER_BASE_URL } from "@/config/api"
 import type {
   RfidCard,
   RfidCardFilterParams,
+  CreateRfidCardPayload,
+  UpdateRfidCardPayload,
 } from "@/types/rfidCard"
 
-function getAuthHeaders(token?: string | null): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+function getAuthHeaders(token?: string | null, isJson = true): Record<string, string> {
+  const headers: Record<string, string> = {}
+  if (isJson) {
+    headers["Content-Type"] = "application/json"
   }
   if (token) {
     const cleanToken = token.startsWith("Bearer ") ? token.slice(7) : token
@@ -22,6 +25,8 @@ async function handleResponse<T>(res: Response, fallbackMessage: string): Promis
       const errJson = await res.json()
       if (errJson.message) {
         errorMessage = errJson.message
+      } else if (errJson.errors && Array.isArray(errJson.errors)) {
+        errorMessage = errJson.errors.join(", ")
       }
     } catch {
       // Ignore JSON parse error
@@ -72,6 +77,135 @@ export async function fetchRfidCardsApi(
         headers: getAuthHeaders(token),
       })
       return await handleResponse<RfidCard[]>(fallbackRes, "Failed to retrieve RFID cards.")
+    }
+    throw err
+  }
+}
+
+/**
+ * Fetch a single RFID card by ID
+ */
+export async function fetchRfidCardByIdApi(
+  token: string,
+  id: number
+): Promise<RfidCard> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/rfid-cards/${id}`, {
+      method: "GET",
+      headers: getAuthHeaders(token),
+    })
+    return await handleResponse<RfidCard>(res, "Failed to retrieve RFID card details.")
+  } catch (err: unknown) {
+    const status = (err as { status?: number })?.status
+    if (status === 404 || status === 403) {
+      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/rfid-cards/${id}`, {
+        method: "GET",
+        headers: getAuthHeaders(token),
+      })
+      return await handleResponse<RfidCard>(fallbackRes, "Failed to retrieve RFID card details.")
+    }
+    throw err
+  }
+}
+
+/**
+ * Create a new RFID card
+ */
+export async function createRfidCardApi(
+  token: string,
+  payload: CreateRfidCardPayload
+): Promise<RfidCard> {
+  let body: BodyInit
+  let isJson = true
+
+  const fileToUpload = payload.card_image instanceof File ? payload.card_image : payload.rfid_image instanceof File ? payload.rfid_image : null
+
+  if (fileToUpload) {
+    isJson = false
+    const formData = new FormData()
+    formData.append("card_name", payload.card_name)
+    formData.append("card_code", payload.card_code)
+    if (payload.card_type) formData.append("card_type", payload.card_type)
+    if (payload.frequency) formData.append("frequency", payload.frequency)
+    if (payload.read_range) formData.append("read_range", payload.read_range)
+    if (payload.unit_price !== undefined) formData.append("unit_price", String(payload.unit_price))
+    if (payload.min_order_qty !== undefined) formData.append("min_order_qty", String(payload.min_order_qty))
+    if (payload.description) formData.append("description", payload.description)
+    if (payload.status !== undefined) formData.append("status", String(payload.status))
+    formData.append("card_image", fileToUpload)
+    body = formData
+  } else {
+    body = JSON.stringify(payload)
+  }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/rfid-cards`, {
+      method: "POST",
+      headers: getAuthHeaders(token, isJson),
+      body,
+    })
+    return await handleResponse<RfidCard>(res, "Failed to create RFID card.")
+  } catch (err: unknown) {
+    const status = (err as { status?: number })?.status
+    if (status === 404 || status === 403) {
+      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/rfid-cards`, {
+        method: "POST",
+        headers: getAuthHeaders(token, isJson),
+        body,
+      })
+      return await handleResponse<RfidCard>(fallbackRes, "Failed to create RFID card.")
+    }
+    throw err
+  }
+}
+
+/**
+ * Update an existing RFID card
+ */
+export async function updateRfidCardApi(
+  token: string,
+  id: number,
+  payload: UpdateRfidCardPayload
+): Promise<RfidCard> {
+  let body: BodyInit
+  let isJson = true
+
+  const fileToUpload = payload.card_image instanceof File ? payload.card_image : payload.rfid_image instanceof File ? payload.rfid_image : null
+
+  if (fileToUpload) {
+    isJson = false
+    const formData = new FormData()
+    if (payload.card_name) formData.append("card_name", payload.card_name)
+    if (payload.card_code) formData.append("card_code", payload.card_code)
+    if (payload.card_type) formData.append("card_type", payload.card_type)
+    if (payload.frequency) formData.append("frequency", payload.frequency)
+    if (payload.read_range) formData.append("read_range", payload.read_range)
+    if (payload.unit_price !== undefined) formData.append("unit_price", String(payload.unit_price))
+    if (payload.min_order_qty !== undefined) formData.append("min_order_qty", String(payload.min_order_qty))
+    if (payload.description !== undefined) formData.append("description", payload.description)
+    if (payload.status !== undefined) formData.append("status", String(payload.status))
+    formData.append("card_image", fileToUpload)
+    body = formData
+  } else {
+    body = JSON.stringify(payload)
+  }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/rfid-cards/${id}`, {
+      method: "PUT",
+      headers: getAuthHeaders(token, isJson),
+      body,
+    })
+    return await handleResponse<RfidCard>(res, "Failed to update RFID card.")
+  } catch (err: unknown) {
+    const status = (err as { status?: number })?.status
+    if (status === 404 || status === 403) {
+      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/rfid-cards/${id}`, {
+        method: "PUT",
+        headers: getAuthHeaders(token, isJson),
+        body,
+      })
+      return await handleResponse<RfidCard>(fallbackRes, "Failed to update RFID card.")
     }
     throw err
   }

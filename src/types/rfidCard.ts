@@ -22,3 +22,31 @@ export interface RfidCardFilterParams {
   status?: string | number
   card_type?: string
 }
+
+export interface CreateRfidCardPayload {
+  card_name: string
+  card_code: string
+  card_type?: RfidCardType
+  frequency?: string
+  read_range?: string
+  unit_price: number | string
+  min_order_qty?: number
+  card_image?: string | File | null
+  rfid_image?: string | File | null
+  description?: string
+  status?: number
+}
+
+export interface UpdateRfidCardPayload {
+  card_name?: string
+  card_code?: string
+  card_type?: RfidCardType
+  frequency?: string
+  read_range?: string
+  unit_price?: number | string
+  min_order_qty?: number
+  card_image?: string | File | null
+  rfid_image?: string | File | null
+  description?: string
+  status?: number
+}

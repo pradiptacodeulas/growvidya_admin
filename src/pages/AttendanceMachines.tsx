@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router"
 import { useAppSelector } from "@/store/store"
 import {
   fetchAttendanceMachinesApi,
@@ -29,7 +30,17 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Cpu,
+  Plus,
+  Pencil,
+  Eye,
   Search,
   RefreshCw,
   LayoutGrid,
@@ -45,7 +56,20 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+const STATUS_FILTER_OPTIONS = [
+  { value: "all", label: "All Statuses" },
+  { value: "active", label: "Active Only" },
+  { value: "inactive", label: "Inactive Only" },
+]
+
+const STATUS_FILTER_LABELS: Record<string, string> = {
+  all: "All Statuses",
+  active: "Active Only",
+  inactive: "Inactive Only",
+}
+
 export default function AttendanceMachines() {
+  const navigate = useNavigate()
   const token = useAppSelector((state) => state.auth.token)
   const [machines, setMachines] = useState<AttendanceMachine[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -55,13 +79,17 @@ export default function AttendanceMachines() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid")
 
-  // Delete modal state
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
-  const [selectedMachine, setSelectedMachine] = useState<AttendanceMachine | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
   // Status toggle in-progress ID
   const [togglingId, setTogglingId] = useState<number | null>(null)
+
+  // Details Modal
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+  const [viewingMachine, setViewingMachine] = useState<AttendanceMachine | null>(null)
+
+  // Delete Modal
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [selectedMachine, setSelectedMachine] = useState<AttendanceMachine | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Debounce search
   useEffect(() => {
@@ -71,7 +99,7 @@ export default function AttendanceMachines() {
     return () => clearTimeout(handler)
   }, [searchQuery])
 
-  // Fetch machines
+  // Fetch machines (NO mock / fallback data)
   const loadMachines = async (showLoadingState = true) => {
     if (!token) return
     if (showLoadingState) setIsLoading(true)
@@ -95,6 +123,12 @@ export default function AttendanceMachines() {
   useEffect(() => {
     loadMachines(true)
   }, [token, debouncedSearch, statusFilter])
+
+  // Open View Details
+  const handleOpenView = (machine: AttendanceMachine) => {
+    setViewingMachine(machine)
+    setIsDetailsOpen(true)
+  }
 
   // Toggle status
   const handleToggleStatus = async (machine: AttendanceMachine) => {
@@ -121,7 +155,7 @@ export default function AttendanceMachines() {
   // Confirm delete
   const handleDeleteConfirm = async () => {
     if (!token || !selectedMachine) return
-    setIsSubmitting(true)
+    setIsDeleting(true)
     try {
       await deleteAttendanceMachineApi(token, selectedMachine.id)
       setMachines((prev) => prev.filter((m) => m.id !== selectedMachine.id))
@@ -132,7 +166,7 @@ export default function AttendanceMachines() {
       const message = err instanceof Error ? err.message : "Failed to delete machine."
       toast.error(message)
     } finally {
-      setIsSubmitting(false)
+      setIsDeleting(false)
     }
   }
 
@@ -165,6 +199,15 @@ export default function AttendanceMachines() {
           >
             <RefreshCw className={`size-4 ${isRefreshing ? "animate-spin" : ""}`} />
             Refresh
+          </Button>
+
+          <Button
+            onClick={() => navigate("/attendance-machines/create")}
+            size="sm"
+            className="gap-1.5 cursor-pointer shadow-xs"
+          >
+            <Plus className="size-4" />
+            Add Machine
           </Button>
         </div>
       </div>
@@ -233,46 +276,35 @@ export default function AttendanceMachines() {
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <X className="size-3.5" />
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Status Tabs */}
-          <div className="inline-flex rounded-lg border border-border/60 bg-muted/30 p-1">
-            <button
-              onClick={() => setStatusFilter("all")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                statusFilter === "all"
-                  ? "bg-background text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+        <div className="flex items-center gap-3">
+          {/* Status Dropdown using Shadcn UI Select */}
+          <div className="w-40">
+            <Select
+              value={statusFilter}
+              onValueChange={(val) => {
+                if (val) setStatusFilter(val as "all" | "active" | "inactive")
+              }}
+              items={STATUS_FILTER_OPTIONS}
+              itemToStringLabel={(val) => STATUS_FILTER_LABELS[String(val)] || String(val || "")}
             >
-              All
-            </button>
-            <button
-              onClick={() => setStatusFilter("active")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                statusFilter === "active"
-                  ? "bg-background text-emerald-600 dark:text-emerald-400 shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => setStatusFilter("inactive")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                statusFilter === "inactive"
-                  ? "bg-background text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Inactive
-            </button>
+              <SelectTrigger className="h-9 text-xs w-full">
+                <SelectValue placeholder="Filter Status" />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_FILTER_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value} label={opt.label}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* View Mode Toggle */}
@@ -280,7 +312,7 @@ export default function AttendanceMachines() {
             <button
               onClick={() => setViewMode("grid")}
               title="Grid View"
-              className={`p-1.5 rounded-md transition-all ${
+              className={`p-1.5 rounded-md transition-all cursor-pointer ${
                 viewMode === "grid"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -291,7 +323,7 @@ export default function AttendanceMachines() {
             <button
               onClick={() => setViewMode("table")}
               title="Table View"
-              className={`p-1.5 rounded-md transition-all ${
+              className={`p-1.5 rounded-md transition-all cursor-pointer ${
                 viewMode === "table"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -331,6 +363,14 @@ export default function AttendanceMachines() {
                 ? "No machines match the selected filter criteria."
                 : "No attendance machines have been registered in the system yet."}
             </p>
+            <Button
+              onClick={() => navigate("/attendance-machines/create")}
+              size="sm"
+              className="mt-2 gap-1.5 cursor-pointer"
+            >
+              <Plus className="size-4" />
+              Add First Machine
+            </Button>
           </div>
         </Card>
       ) : viewMode === "grid" ? (
@@ -354,7 +394,6 @@ export default function AttendanceMachines() {
                         alt={machine.machine_name}
                         className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-300"
                         onError={(e) => {
-                          // Hide broken image placeholder
                           ;(e.target as HTMLElement).style.display = "none"
                         }}
                       />
@@ -401,7 +440,10 @@ export default function AttendanceMachines() {
                           {machine.model_number}
                         </span>
                       </div>
-                      <h3 className="text-base font-semibold text-foreground line-clamp-1 mt-0.5">
+                      <h3
+                        onClick={() => handleOpenView(machine)}
+                        className="text-base font-semibold text-foreground line-clamp-1 mt-0.5 cursor-pointer hover:text-primary transition-colors"
+                      >
                         {machine.machine_name}
                       </h3>
                     </div>
@@ -434,43 +476,66 @@ export default function AttendanceMachines() {
                       </div>
 
                       <div className="flex items-center gap-1.5 text-foreground font-semibold">
-                        <span>
-                          ₹{Number(machine.unit_price || 0).toLocaleString("en-IN")}
-                        </span>
+                        <span>₹{Number(machine.unit_price || 0).toLocaleString("en-IN")}</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Card Actions Footer */}
-                <div className="p-3 bg-muted/20 border-t border-border/50 flex items-center justify-between gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleToggleStatus(machine)}
-                    disabled={isToggling}
-                    className={`h-8 px-2.5 text-xs gap-1.5 cursor-pointer ${
-                      machine.status === 1
-                        ? "text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10"
-                        : "text-emerald-600 hover:bg-emerald-500/10"
-                    }`}
-                  >
-                    <Power className={`size-3.5 ${isToggling ? "animate-spin" : ""}`} />
-                    {machine.status === 1 ? "Deactivate" : "Activate"}
-                  </Button>
+                <div className="p-3 bg-muted/20 border-t border-border/50 flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleToggleStatus(machine)}
+                      disabled={isToggling}
+                      title={machine.status === 1 ? "Deactivate" : "Activate"}
+                      className={`h-8 px-2 text-xs gap-1.5 cursor-pointer ${
+                        machine.status === 1
+                          ? "text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10"
+                          : "text-emerald-600 hover:bg-emerald-500/10"
+                      }`}
+                    >
+                      <Power className={`size-3.5 ${isToggling ? "animate-spin" : ""}`} />
+                      {machine.status === 1 ? "Deactivate" : "Activate"}
+                    </Button>
+                  </div>
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedMachine(machine)
-                      setIsDeleteOpen(true)
-                    }}
-                    className="h-8 px-2.5 text-xs text-destructive hover:bg-destructive/10 cursor-pointer"
-                  >
-                    <Trash2 className="size-3.5" />
-                    Delete
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="View Details"
+                      onClick={() => handleOpenView(machine)}
+                      className="size-8 cursor-pointer"
+                    >
+                      <Eye className="size-3.5" />
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Edit"
+                      onClick={() => navigate(`/attendance-machines/${machine.id}/edit`)}
+                      className="size-8 cursor-pointer"
+                    >
+                      <Pencil className="size-3.5" />
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Delete"
+                      onClick={() => {
+                        setSelectedMachine(machine)
+                        setIsDeleteOpen(true)
+                      }}
+                      className="size-8 text-destructive hover:bg-destructive/10 cursor-pointer"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
                 </div>
               </Card>
             )
@@ -486,7 +551,7 @@ export default function AttendanceMachines() {
                   <TableHead className="w-[80px]">Image</TableHead>
                   <TableHead>Machine Name & Model</TableHead>
                   <TableHead>Brand & Type</TableHead>
-                  <TableHead>Capacities</TableHead>
+                  <TableHead>Capacities & Conn</TableHead>
                   <TableHead>Price</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -500,7 +565,10 @@ export default function AttendanceMachines() {
                   return (
                     <TableRow key={machine.id}>
                       <TableCell>
-                        <div className="size-12 rounded-lg bg-muted border border-border/60 overflow-hidden flex items-center justify-center shrink-0">
+                        <div
+                          onClick={() => handleOpenView(machine)}
+                          className="size-12 rounded-lg bg-muted border border-border/60 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer hover:opacity-85"
+                        >
                           {imageUrl ? (
                             <img
                               src={imageUrl}
@@ -518,7 +586,10 @@ export default function AttendanceMachines() {
 
                       <TableCell>
                         <div className="space-y-0.5">
-                          <p className="font-semibold text-foreground text-sm">
+                          <p
+                            onClick={() => handleOpenView(machine)}
+                            className="font-semibold text-foreground text-sm cursor-pointer hover:text-primary transition-colors"
+                          >
                             {machine.machine_name}
                           </p>
                           <p className="text-xs font-mono text-muted-foreground">
@@ -595,6 +666,27 @@ export default function AttendanceMachines() {
                           >
                             <Power className={`size-4 ${isToggling ? "animate-spin" : ""}`} />
                           </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="View Details"
+                            onClick={() => handleOpenView(machine)}
+                            className="size-8 cursor-pointer"
+                          >
+                            <Eye className="size-4" />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Edit"
+                            onClick={() => navigate(`/attendance-machines/${machine.id}/edit`)}
+                            className="size-8 cursor-pointer"
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+
                           <Button
                             variant="ghost"
                             size="icon"
@@ -618,7 +710,156 @@ export default function AttendanceMachines() {
         </Card>
       )}
 
-      {/* Delete Confirmation Dialog */}
+      {/* VIEW DETAILS MODAL DIALOG */}
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+          {viewingMachine && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center justify-between gap-3 pr-6">
+                  <DialogTitle className="text-lg font-bold text-foreground">
+                    {viewingMachine.machine_name}
+                  </DialogTitle>
+                  <Badge
+                    variant="secondary"
+                    className={`text-xs font-semibold px-2 py-0.5 ${
+                      viewingMachine.status === 1
+                        ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {viewingMachine.status === 1 ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+                <DialogDescription className="text-xs font-mono">
+                  Model SKU: {viewingMachine.model_number}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 pt-2">
+                {/* Photo Preview */}
+                <div className="h-48 rounded-xl bg-muted/30 border border-border/60 flex items-center justify-center overflow-hidden">
+                  {getFullImageUrl(viewingMachine.machine_image) ? (
+                    <img
+                      src={getFullImageUrl(viewingMachine.machine_image)!}
+                      alt={viewingMachine.machine_name}
+                      className="size-full object-contain p-4"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
+                      <Cpu className="size-12 stroke-1 text-muted-foreground/50" />
+                      <span className="text-xs">No image uploaded</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Details Grid */}
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
+                    <span className="text-muted-foreground">Brand</span>
+                    <p className="font-semibold text-foreground text-sm">
+                      {viewingMachine.brand || "—"}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
+                    <span className="text-muted-foreground">Device Type</span>
+                    <p className="font-semibold text-foreground text-sm uppercase">
+                      {viewingMachine.machine_type}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
+                    <span className="text-muted-foreground">Unit Price</span>
+                    <p className="font-semibold text-foreground text-sm">
+                      ₹{Number(viewingMachine.unit_price || 0).toLocaleString("en-IN")}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
+                    <span className="text-muted-foreground">AMC Price (Annual)</span>
+                    <p className="font-semibold text-foreground text-sm">
+                      {viewingMachine.amc_price
+                        ? `₹${Number(viewingMachine.amc_price).toLocaleString("en-IN")}`
+                        : "—"}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
+                    <span className="text-muted-foreground">User Capacity</span>
+                    <p className="font-semibold text-foreground text-sm">
+                      {viewingMachine.user_capacity
+                        ? Number(viewingMachine.user_capacity).toLocaleString()
+                        : "1,000"}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
+                    <span className="text-muted-foreground">Log Capacity</span>
+                    <p className="font-semibold text-foreground text-sm">
+                      {viewingMachine.log_capacity
+                        ? Number(viewingMachine.log_capacity).toLocaleString()
+                        : "100,000"}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
+                    <span className="text-muted-foreground">Connectivity</span>
+                    <p className="font-semibold text-foreground text-sm">
+                      {viewingMachine.connectivity || "LAN, Wi-Fi"}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-card border border-border/50 space-y-1">
+                    <span className="text-muted-foreground">Push Protocol</span>
+                    <p className="font-semibold text-foreground text-sm">
+                      {viewingMachine.push_protocol || "Cloud Push"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Specifications */}
+                {viewingMachine.specifications && (
+                  <div className="p-3.5 rounded-lg bg-muted/20 border border-border/50 space-y-1 text-xs">
+                    <span className="font-semibold text-foreground">Specifications & Notes</span>
+                    <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                      {viewingMachine.specifications}
+                    </p>
+                  </div>
+                )}
+
+                {/* Timestamps */}
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2 border-t border-border/50">
+                  <span>Created: {viewingMachine.created_at || "—"}</span>
+                  <span>Updated: {viewingMachine.updated_at || "—"}</span>
+                </div>
+              </div>
+
+              <DialogFooter className="pt-3 border-t border-border/50">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDetailsOpen(false)}
+                  className="cursor-pointer"
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    setIsDetailsOpen(false)
+                    navigate(`/attendance-machines/${viewingMachine.id}/edit`)
+                  }}
+                  className="gap-1.5 cursor-pointer"
+                >
+                  <Pencil className="size-3.5" />
+                  Edit Device
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* DELETE CONFIRMATION MODAL DIALOG */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -628,10 +869,8 @@ export default function AttendanceMachines() {
             </DialogTitle>
             <DialogDescription className="text-sm pt-2">
               Are you sure you want to delete{" "}
-              <strong className="text-foreground">
-                {selectedMachine?.machine_name}
-              </strong>
-              ? This device specification will be permanently removed.
+              <strong className="text-foreground">{selectedMachine?.machine_name}</strong>?
+              This hardware record will be permanently deleted from the database.
             </DialogDescription>
           </DialogHeader>
 
@@ -639,7 +878,7 @@ export default function AttendanceMachines() {
             <Button
               variant="outline"
               onClick={() => setIsDeleteOpen(false)}
-              disabled={isSubmitting}
+              disabled={isDeleting}
               className="cursor-pointer"
             >
               Cancel
@@ -647,10 +886,10 @@ export default function AttendanceMachines() {
             <Button
               variant="destructive"
               onClick={handleDeleteConfirm}
-              disabled={isSubmitting}
+              disabled={isDeleting}
               className="cursor-pointer gap-2"
             >
-              {isSubmitting && <RefreshCw className="size-4 animate-spin" />}
+              {isDeleting && <RefreshCw className="size-4 animate-spin" />}
               Delete Device
             </Button>
           </DialogFooter>
