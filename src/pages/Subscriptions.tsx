@@ -1,5 +1,5 @@
-import PlansPricing from "./PlansPricing"
+import SchoolsSubscriptions from "./SchoolsSubscriptions"
 
 export default function Subscriptions() {
-  return <PlansPricing />
+  return <SchoolsSubscriptions />
 }

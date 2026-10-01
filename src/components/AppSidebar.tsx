@@ -29,6 +29,7 @@ import {
   Landmark,
   ChevronDown,
   HardDrive,
+  ShieldCheck,
 } from "lucide-react"
 import { Link, useLocation } from "react-router"
 import { useState, useEffect } from "react"
@@ -85,11 +86,13 @@ export function AppSidebar() {
     }
   }, [isSubscriptionRoute])
 
-  const isPlanActive =
+  const isApprovalsActive =
     location.pathname === "/subscriptions" ||
-    location.pathname.startsWith("/plans-pricing") ||
-    location.pathname.startsWith("/packages") ||
     location.pathname.startsWith("/schools-subscriptions")
+
+  const isPackagesActive =
+    location.pathname.startsWith("/plans-pricing") ||
+    location.pathname.startsWith("/packages")
 
   const isAttendanceMachineActive = location.pathname.startsWith("/attendance-machines")
   const isRfidActive = location.pathname.startsWith("/rfid-cards")
@@ -187,15 +190,27 @@ export function AppSidebar() {
 
                 {isSubscriptionOpen && (
                   <SidebarMenuSub>
-                    {/* Plan Submenu */}
+                    {/* Plan Approvals Submenu */}
                     <SidebarMenuSubItem>
                       <SidebarMenuSubButton
-                        isActive={isPlanActive}
+                        isActive={isApprovalsActive}
                         className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
                         render={<Link to="/subscriptions" />}
                       >
+                        <ShieldCheck className="size-3.5 shrink-0 text-amber-500" />
+                        <span>Plan Approvals</span>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+
+                    {/* Packages & Pricing Submenu */}
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        isActive={isPackagesActive}
+                        className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                        render={<Link to="/plans-pricing" />}
+                      >
                         <CreditCard className="size-3.5 shrink-0" />
-                        <span>Plan</span>
+                        <span>Packages & Pricing</span>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
 

@@ -95,3 +95,71 @@ export interface SingleItemApiResponse {
   message: string
   data: SubscriptionItem
 }
+
+export type SchoolSubscriptionStatus = 'pending' | 'active' | 'trial' | 'expired' | 'suspended'
+export type SchoolPaymentStatus = 'completed' | 'pending' | 'failed'
+
+export interface SchoolSubscription {
+  id: number
+  school_id: number
+  school_name: string
+  school_code: string
+  school_email?: string | null
+  school_phone?: string | null
+  school_address?: string | null
+  plan_id: number
+  plan_name: string
+  plan_code?: string
+  plan_price: number | string
+  billing_cycle: BillingCycle
+  max_students?: number
+  max_teachers?: number
+  amount_paid: number | string
+  original_amount?: number | string | null
+  discount_amount?: number | string
+  coupon_id?: number | null
+  coupon_code?: string | null
+  payment_gateway?: string
+  payment_transaction_id?: string | null
+  payment_status: SchoolPaymentStatus
+  status: SchoolSubscriptionStatus
+  start_date: string
+  end_date: string
+  verification_notes?: string | null
+  verified_by?: number | null
+  verified_by_name?: string | null
+  verified_at?: string | null
+  created_at: string
+}
+
+export interface SubscriptionCounts {
+  total: number
+  pending: number
+  active: number
+  expired: number
+  suspended: number
+  trial: number
+}
+
+export interface SubscriptionsPagination {
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+export interface SubscriptionsListResult {
+  subscriptions: SchoolSubscription[]
+  pagination: SubscriptionsPagination
+  counts: SubscriptionCounts
+}
+
+export interface ApproveSubscriptionPayload {
+  verificationNotes?: string
+  startDate?: string
+  endDate?: string
+}
+
+export interface RejectSubscriptionPayload {
+  rejectionReason?: string
+}

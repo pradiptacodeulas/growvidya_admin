@@ -123,10 +123,11 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
         return "Overview"
       case "/subscriptions":
       case "/schools-subscriptions":
+        return "Plan Approvals & Subscriptions"
       case "/plans-pricing":
       case "/packages":
       case "/saas-admin/packages":
-        return "Plans & Packages"
+        return "Packages & Pricing"
       case "/attendance-machines":
         return "Attendance Machines"
       case "/rfid-cards":

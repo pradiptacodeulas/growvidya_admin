@@ -5,6 +5,10 @@ import type {
   CreatePackagePayload,
   UpdatePackagePayload,
   CreateItemPayload,
+  SchoolSubscription,
+  SubscriptionsListResult,
+  ApproveSubscriptionPayload,
+  RejectSubscriptionPayload,
 } from "@/types/subscription"
 
 function getAuthHeaders(token?: string | null): Record<string, string> {
@@ -290,3 +294,136 @@ export async function fetchPublicPlansApi(): Promise<SubscriptionPackage[]> {
 
   return handleResponse<SubscriptionPackage[]>(response, "Failed to retrieve public subscription plans.")
 }
+
+/**
+ * Fetch all school subscriptions with filters (search, status, paymentStatus, page, limit)
+ */
+export async function fetchSubscriptionsApi(
+  token: string,
+  params?: {
+    search?: string
+    status?: string
+    paymentStatus?: string
+    planId?: number | string
+    page?: number
+    limit?: number
+  }
+): Promise<SubscriptionsListResult> {
+  const query = new URLSearchParams()
+  if (params?.search && params.search.trim()) {
+    query.set("search", params.search.trim())
+  }
+  if (params?.status && params.status !== "all") {
+    query.set("status", params.status)
+  }
+  if (params?.paymentStatus && params.paymentStatus !== "all") {
+    query.set("paymentStatus", params.paymentStatus)
+  }
+  if (params?.planId && params.planId !== "all") {
+    query.set("planId", String(params.planId))
+  }
+  if (params?.page) {
+    query.set("page", String(params.page))
+  }
+  if (params?.limit) {
+    query.set("limit", String(params.limit))
+  }
+
+  const queryString = query.toString() ? `?${query.toString()}` : ""
+  const response = await fetch(`${API_BASE_URL}/subscriptions${queryString}`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+
+  return handleResponse<SubscriptionsListResult>(response, "Failed to retrieve school subscriptions.")
+}
+
+/**
+ * Get details of a single school subscription
+ */
+export async function fetchSubscriptionByIdApi(
+  token: string,
+  id: number
+): Promise<SchoolSubscription> {
+  const response = await fetch(`${API_BASE_URL}/subscriptions/${id}`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+
+  return handleResponse<SchoolSubscription>(response, "Failed to retrieve subscription details.")
+}
+
+/**
+ * Super Admin: Approve a pending subscription plan
+ */
+export async function approveSubscriptionApi(
+  token: string,
+  id: number,
+  payload: ApproveSubscriptionPayload = {}
+): Promise<SchoolSubscription> {
+  const response = await fetch(`${API_BASE_URL}/subscriptions/${id}/approve`, {
+    method: "POST",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  })
+
+  return handleResponse<SchoolSubscription>(response, "Failed to approve subscription plan.")
+}
+
+/**
+ * Super Admin: Reject a pending subscription plan
+ */
+export async function rejectSubscriptionApi(
+  token: string,
+  id: number,
+  payload: RejectSubscriptionPayload = {}
+): Promise<SchoolSubscription> {
+  const response = await fetch(`${API_BASE_URL}/subscriptions/${id}/reject`, {
+    method: "POST",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  })
+
+  return handleResponse<SchoolSubscription>(response, "Failed to reject subscription request.")
+}
+
+/**
+ * Super Admin: Verify / update subscription status
+ */
+export async function verifySubscriptionApi(
+  token: string,
+  id: number,
+  payload: {
+    paymentStatus: string
+    status: string
+    verificationNotes?: string
+    startDate?: string
+    endDate?: string
+  }
+): Promise<SchoolSubscription> {
+  const response = await fetch(`${API_BASE_URL}/subscriptions/${id}/verify`, {
+    method: "POST",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  })
+
+  return handleResponse<SchoolSubscription>(response, "Failed to verify subscription.")
+}
+
+/**
+ * Super Admin: Extend subscription
+ */
+export async function extendSubscriptionApi(
+  token: string,
+  id: number,
+  payload: { endDate: string; notes?: string }
+): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/subscriptions/${id}/extend`, {
+    method: "POST",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  })
+
+  return handleResponse<{ success: boolean; message: string }>(response, "Failed to extend subscription.")
+}
+
