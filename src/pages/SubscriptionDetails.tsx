@@ -41,7 +41,6 @@ import {
   Mail,
   Phone,
   MapPin,
-  Sparkles,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -318,12 +317,6 @@ export default function SubscriptionDetails() {
         </div>
         <div className="space-y-4">
           <Skeleton className="h-12 w-full" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Skeleton className="h-28" />
-            <Skeleton className="h-28" />
-            <Skeleton className="h-28" />
-            <Skeleton className="h-28" />
-          </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Skeleton className="h-80 lg:col-span-2" />
             <Skeleton className="h-80" />
@@ -459,87 +452,6 @@ export default function SubscriptionDetails() {
           </CardContent>
         </Card>
       )}
-
-      {/* Quick Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="shadow-xs">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-xs flex items-center justify-between">
-              <span>Selected Plan</span>
-              <Layers className="size-4 text-primary" />
-            </CardDescription>
-            <CardTitle className="text-lg font-bold truncate">{subscription.plan_name}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-xs text-muted-foreground capitalize">
-              Billing: <strong className="text-foreground">{subscription.billing_cycle}</strong>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-xs">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-xs flex items-center justify-between">
-              <span>Amount Paid</span>
-              <CreditCard className="size-4 text-emerald-600" />
-            </CardDescription>
-            <CardTitle className="text-lg font-bold text-foreground">
-              {formatCurrency(subscription.amount_paid)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-xs text-muted-foreground">
-              Plan Price: {formatCurrency(subscription.plan_price)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-xs">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-xs flex items-center justify-between">
-              <span>Subscription Validity</span>
-              <Calendar className="size-4 text-blue-600" />
-            </CardDescription>
-            <CardTitle className="text-lg font-bold text-foreground">
-              {subscription.status === "pending"
-                ? "Pending Approval"
-                : formatDate(subscription.end_date)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-xs text-muted-foreground">
-              {subscription.status === "active" || subscription.status === "trial" ? (
-                daysRemaining !== null && daysRemaining > 0 ? (
-                  <span className="text-emerald-600 font-medium">{daysRemaining} days remaining</span>
-                ) : daysRemaining !== null && daysRemaining === 0 ? (
-                  <span className="text-amber-600 font-medium">Expires today</span>
-                ) : (
-                  <span className="text-rose-600 font-medium">Expired</span>
-                )
-              ) : (
-                `Effective: ${formatDate(subscription.start_date) || "Not started"}`
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-xs">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-xs flex items-center justify-between">
-              <span>Payment Gateway</span>
-              <Sparkles className="size-4 text-purple-600" />
-            </CardDescription>
-            <CardTitle className="text-lg font-bold uppercase truncate">
-              {subscription.payment_gateway || "Direct"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-xs text-muted-foreground truncate">
-              Txn: {subscription.payment_transaction_id || "None"}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Main Details Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -839,6 +751,21 @@ export default function SubscriptionDetails() {
                     : formatDate(subscription.end_date)}
                 </span>
               </div>
+
+              {(subscription.status === "active" || subscription.status === "trial") && (
+                <div className="flex justify-between items-center py-1.5 border-b">
+                  <span className="text-xs text-muted-foreground">Validity Status</span>
+                  <span className="text-xs font-semibold">
+                    {daysRemaining !== null && daysRemaining > 0 ? (
+                      <span className="text-emerald-600">{daysRemaining} days remaining</span>
+                    ) : daysRemaining !== null && daysRemaining === 0 ? (
+                      <span className="text-amber-600">Expires today</span>
+                    ) : (
+                      <span className="text-rose-600">Expired</span>
+                    )}
+                  </span>
+                </div>
+              )}
 
               <div className="flex justify-between items-center py-1.5 border-b">
                 <span className="text-xs text-muted-foreground">Requested On</span>
