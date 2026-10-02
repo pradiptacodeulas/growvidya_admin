@@ -313,10 +313,16 @@ export default function PackageItems() {
               </div>
               <div className="h-8 w-px bg-border/60 hidden sm:block" />
               <div>
-                <span className="text-muted-foreground block text-[11px]">Student / Teacher Limit</span>
+                <span className="text-muted-foreground block text-[11px]">Student Capacity</span>
                 <span className="font-medium text-foreground text-xs">
-                  {pkg.max_students === 0 ? "Unlimited" : pkg.max_students} students /{" "}
-                  {pkg.max_teachers === 0 ? "Unlimited" : pkg.max_teachers} teachers
+                  {pkg.max_students === 0 ? "Unlimited" : `${pkg.max_students} students`}
+                </span>
+              </div>
+              <div className="h-8 w-px bg-border/60 hidden sm:block" />
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Free Trial</span>
+                <span className="font-medium text-foreground text-xs">
+                  {pkg.free_trial_days && pkg.free_trial_days > 0 ? `${pkg.free_trial_days} days` : "No trial"}
                 </span>
               </div>
             </div>

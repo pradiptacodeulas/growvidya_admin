@@ -24,8 +24,8 @@ export interface SubscriptionPackage {
   description: string
   price: number | string // Base plan price (e.g. 5999.00)
   billing_cycle: BillingCycle
+  free_trial_days?: number // Dynamic free trial days (0 = no trial)
   max_students: number // 0 = Unlimited
-  max_teachers: number // 0 = Unlimited
   status: 1 | 0 // 1 = Active, 0 = Inactive
   subscriber_count?: number // Number of enrolled schools
   items_count?: number
@@ -41,8 +41,8 @@ export interface CreatePackagePayload {
   description?: string
   price: number | string
   billing_cycle: BillingCycle
+  free_trial_days?: number
   max_students: number
-  max_teachers: number
   status?: 1 | 0
   items?: SubscriptionItem[]
 }
@@ -53,8 +53,8 @@ export interface UpdatePackagePayload {
   description?: string
   price?: number | string
   billing_cycle?: BillingCycle
+  free_trial_days?: number
   max_students?: number
-  max_teachers?: number
   status?: 1 | 0
   items?: SubscriptionItem[]
 }

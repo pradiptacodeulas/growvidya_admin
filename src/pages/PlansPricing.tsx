@@ -26,7 +26,6 @@ import {
   List,
   Package,
   CheckCircle2,
-  Users,
   GraduationCap,
   Sparkles,
   Layers,
@@ -35,6 +34,7 @@ import {
   AlertCircle,
   CreditCard,
   Zap,
+  Clock,
 } from "lucide-react"
 
 export default function PlansPricing() {
@@ -341,7 +341,7 @@ export default function PlansPricing() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Annual
+              Annually
             </button>
             <button
               type="button"
@@ -537,7 +537,7 @@ export default function PlansPricing() {
 
                 {/* Card Body: Capacities & Features */}
                 <div className="p-5 flex-1 space-y-4">
-                  {/* Capacity Limits */}
+                  {/* Capacity Limits & Free Trial */}
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 border border-border/40">
                       <GraduationCap className="h-4 w-4 text-primary shrink-0" />
@@ -550,11 +550,11 @@ export default function PlansPricing() {
                     </div>
 
                     <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 border border-border/40">
-                      <Users className="h-4 w-4 text-primary shrink-0" />
+                      <Clock className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <div>
-                        <span className="text-[10px] text-muted-foreground block leading-tight">Teachers</span>
+                        <span className="text-[10px] text-muted-foreground block leading-tight">Free Trial</span>
                         <strong className="text-foreground font-semibold">
-                          {pkg.max_teachers > 0 ? `Max ${pkg.max_teachers.toLocaleString("en-IN")}` : "Unlimited"}
+                          {pkg.free_trial_days && pkg.free_trial_days > 0 ? `${pkg.free_trial_days} Days` : "No Trial"}
                         </strong>
                       </div>
                     </div>
@@ -670,7 +670,7 @@ export default function PlansPricing() {
                   <th className="p-3.5">Billing Cycle</th>
                   <th className="p-3.5">Base Price</th>
                   <th className="p-3.5">Max Students</th>
-                  <th className="p-3.5">Max Teachers</th>
+                  <th className="p-3.5">Free Trial</th>
                   <th className="p-3.5">Items Attached</th>
                   <th className="p-3.5">Status</th>
                   <th className="p-3.5 text-right pr-4">Actions</th>
@@ -701,7 +701,13 @@ export default function PlansPricing() {
                       </td>
 
                       <td className="p-3.5">
-                        {pkg.max_teachers > 0 ? pkg.max_teachers.toLocaleString("en-IN") : "Unlimited"}
+                        {pkg.free_trial_days && pkg.free_trial_days > 0 ? (
+                          <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-600 bg-emerald-500/10">
+                            {pkg.free_trial_days} Days
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </td>
 
                       <td className="p-3.5">

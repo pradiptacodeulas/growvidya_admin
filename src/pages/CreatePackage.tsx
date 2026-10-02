@@ -3,12 +3,7 @@ import { useNavigate } from "react-router"
 import { useAppSelector } from "@/store/store"
 import { toast } from "sonner"
 import { createPackageApi } from "@/services/subscriptionService"
-import type {
-  SubscriptionItem,
-  BillingCycle,
-  ItemType,
-  BillingType,
-} from "@/types/subscription"
+import type { BillingCycle } from "@/types/subscription"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -43,34 +38,24 @@ import {
   Trash2,
   Loader2,
   CheckCircle2,
+  Clock,
+  Sparkles,
 } from "lucide-react"
 
-const BILLING_CYCLE_LABELS: Record<BillingCycle, string> = {
-  annual: "Annual (Yearly)",
+// Only two billing cycles allowed
+const BILLING_CYCLE_OPTIONS: { value: BillingCycle; label: string }[] = [
+  { value: "monthly", label: "Monthly" },
+  { value: "annual", label: "Annually" },
+]
+
+const BILLING_CYCLE_LABELS: Record<string, string> = {
   monthly: "Monthly",
-  quarterly: "Quarterly (3 Months)",
-  half_yearly: "Half Yearly (6 Months)",
-  trial: "Free Trial",
+  annual: "Annually",
 }
 
-const ITEM_TYPE_LABELS: Record<ItemType, string> = {
-  included: "Included (Free)",
-  addon: "Paid Add-on",
-  usage_based: "Usage Based",
-}
-
-const UNIT_LABELS: Record<string, string> = {
-  notifications: "Notifications",
-  messages: "Messages",
-  gb: "Gigabytes (GB)",
-  license: "Licenses",
-  flat: "Flat",
-}
-
-const BILLING_TYPE_LABELS: Record<BillingType, string> = {
-  recurring: "Recurring",
-  one_time: "One-Time",
-  per_unit: "Per Unit",
+interface PlanFeatureItem {
+  item_name: string
+  description: string
 }
 
 function slugify(text: string): string {
@@ -91,14 +76,14 @@ export default function CreatePackage() {
   const [planCode, setPlanCode] = useState("")
   const [isCodeManual, setIsCodeManual] = useState(false)
   const [price, setPrice] = useState("")
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>("annual")
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly")
+  const [freeTrialDays, setFreeTrialDays] = useState<number | "">("")
   const [maxStudents, setMaxStudents] = useState<number | "">("")
-  const [maxTeachers, setMaxTeachers] = useState<number | "">("")
   const [status, setStatus] = useState<1 | 0>(1)
   const [description, setDescription] = useState("")
 
-  // Repeater Items (starts completely empty, no fallback dummy items)
-  const [items, setItems] = useState<SubscriptionItem[]>([])
+  // Features & Add-ons Repeater Items (starts completely empty, no dummy data)
+  const [items, setItems] = useState<PlanFeatureItem[]>([])
 
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -119,13 +104,7 @@ export default function CreatePackage() {
       ...prev,
       {
         item_name: "",
-        item_code: "",
-        item_type: "included",
-        price: 0,
-        quota_limit: null,
-        unit: "notifications",
-        billing_type: "recurring",
-        status: 1,
+        description: "",
       },
     ])
   }
@@ -134,28 +113,17 @@ export default function CreatePackage() {
     setItems((prev) => prev.filter((_, idx) => idx !== index))
   }
 
-  const handleUpdateItem = <K extends keyof SubscriptionItem>(
+  const handleUpdateItem = (
     index: number,
-    field: K,
-    value: SubscriptionItem[K]
+    field: keyof PlanFeatureItem,
+    value: string
   ) => {
     setItems((prev) => {
       const updated = [...prev]
-      const current = { ...updated[index] }
-
-      current[field] = value
-
-      if (field === "item_type" && value === "included") {
-        current.price = 0
+      updated[index] = {
+        ...updated[index],
+        [field]: value,
       }
-
-      if (field === "item_name" && typeof value === "string") {
-        if (!current.item_code || current.item_code === slugify(current.item_name).toUpperCase()) {
-          current.item_code = slugify(value).toUpperCase()
-        }
-      }
-
-      updated[index] = current
       return updated
     })
   }
@@ -188,15 +156,8 @@ export default function CreatePackage() {
     for (let i = 0; i < items.length; i++) {
       const it = items[i]
       if (!it.item_name.trim()) {
-        toast.error(`Item #${i + 1} must have a name.`)
+        toast.error(`Feature / Add-on #${i + 1} must have an Item Name.`)
         return
-      }
-      if (it.item_type !== "included") {
-        const itemPrice = parseFloat(String(it.price))
-        if (isNaN(itemPrice) || itemPrice < 0) {
-          toast.error(`Item "${it.item_name}" must have a valid price.`)
-          return
-        }
       }
     }
 
@@ -204,11 +165,15 @@ export default function CreatePackage() {
 
     try {
       const cleanedItems = items.map((it, idx) => ({
-        ...it,
         item_name: it.item_name.trim(),
-        item_code: it.item_code?.trim() || slugify(it.item_name).toUpperCase(),
-        price: it.item_type === "included" ? 0 : parseFloat(String(it.price)) || 0,
-        quota_limit: it.quota_limit ? Number(it.quota_limit) : null,
+        description: it.description?.trim() || "",
+        item_code: slugify(it.item_name).toUpperCase(),
+        item_type: "included" as const,
+        price: 0,
+        quota_limit: null,
+        unit: null,
+        billing_type: "recurring" as const,
+        status: 1 as const,
         display_order: idx + 1,
       }))
 
@@ -217,18 +182,18 @@ export default function CreatePackage() {
         plan_code: planCode.trim(),
         price: parsedPrice,
         billing_cycle: billingCycle,
+        free_trial_days: freeTrialDays === "" ? 0 : Number(freeTrialDays),
         max_students: Number(maxStudents) || 0,
-        max_teachers: Number(maxTeachers) || 0,
         status,
         description: description.trim(),
         items: cleanedItems,
       })
 
-      toast.success("Subscription package created successfully!")
+      toast.success("Subscription plan created successfully!")
       navigate("/plans-pricing")
     } catch (err: unknown) {
       const error = err as Error
-      toast.error(error.message || "Failed to create subscription package.")
+      toast.error(error.message || "Failed to create subscription plan.")
     } finally {
       setIsSubmitting(false)
     }
@@ -236,7 +201,7 @@ export default function CreatePackage() {
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Header with Single Back Button */}
+      {/* Header with Back Button */}
       <div className="flex items-center gap-3">
         <Button
           variant="outline"
@@ -249,10 +214,10 @@ export default function CreatePackage() {
         </Button>
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            Create Subscription Package
+            Create Plan
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Configure a new subscription plan, capacity limits, and attached features or add-ons.
+            Configure a new subscription plan with dynamic billing cycles, free trial days, and features.
           </p>
         </div>
       </div>
@@ -273,7 +238,7 @@ export default function CreatePackage() {
               </Badge>
             </div>
             <CardDescription className="text-xs">
-              Basic identification, pricing, and student/teacher capacity limits for schools.
+              Basic identification, pricing, billing cycle, and dynamic trial settings for schools.
             </CardDescription>
           </CardHeader>
 
@@ -286,7 +251,7 @@ export default function CreatePackage() {
                 </Label>
                 <Input
                   id="plan_name"
-                  placeholder="Plan name"
+                  placeholder="e.g. Starter Plan, Growth Plan"
                   value={planName}
                   onChange={(e) => handleNameChange(e.target.value)}
                   disabled={isSubmitting}
@@ -302,7 +267,7 @@ export default function CreatePackage() {
                 </Label>
                 <Input
                   id="plan_code"
-                  placeholder="Plan code"
+                  placeholder="e.g. starter_monthly, growth_annual"
                   value={planCode}
                   onChange={(e) => handleCodeChange(e.target.value)}
                   disabled={isSubmitting}
@@ -329,41 +294,76 @@ export default function CreatePackage() {
                   required
                 />
                 <span className="text-[10px] text-muted-foreground">
-                  Enter 0 for Free Trial or complimentary plans.
+                  Enter 0 for complimentary plans.
                 </span>
               </div>
 
-              {/* Billing Cycle */}
+              {/* Billing Cycle - Exactly 2 options: Monthly and Annually */}
               <div className="space-y-1.5">
                 <Label htmlFor="billing_cycle" className="text-xs font-semibold">
                   Billing Cycle <span className="text-destructive">*</span>
                 </Label>
                 <Select
                   value={billingCycle}
-                  onValueChange={(val) => setBillingCycle(val as BillingCycle)}
+                  onValueChange={(val) => {
+                    if (val) setBillingCycle(val as BillingCycle)
+                  }}
                   items={BILLING_CYCLE_LABELS}
-                  itemToStringLabel={(val) => BILLING_CYCLE_LABELS[val as BillingCycle] || String(val)}
+                  itemToStringLabel={(val) => BILLING_CYCLE_LABELS[val as string] || String(val || "")}
                   disabled={isSubmitting}
                 >
                   <SelectTrigger id="billing_cycle" className="w-full h-9 text-xs">
                     <SelectValue placeholder="Select billing cycle" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(Object.keys(BILLING_CYCLE_LABELS) as BillingCycle[]).map((cycle) => (
+                    {BILLING_CYCLE_OPTIONS.map((cycle) => (
                       <SelectItem
-                        key={cycle}
-                        value={cycle}
-                        label={BILLING_CYCLE_LABELS[cycle]}
+                        key={cycle.value}
+                        value={cycle.value}
+                        label={cycle.label}
                         className="text-xs cursor-pointer"
                       >
-                        {BILLING_CYCLE_LABELS[cycle]}
+                        {cycle.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <span className="text-[10px] text-muted-foreground">
+                  Select either Monthly or Annually billing schedule.
+                </span>
               </div>
 
-              {/* Student Capacity */}
+              {/* Free Trial Days - Dynamic Field */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="free_trial_days" className="text-xs font-semibold">
+                    Free Trial Days
+                  </Label>
+                  <Badge variant="outline" className="text-[10px] py-0 h-4 border-primary/30 text-primary">
+                    Dynamic
+                  </Badge>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="free_trial_days"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={freeTrialDays}
+                    onChange={(e) =>
+                      setFreeTrialDays(e.target.value === "" ? "" : Math.max(0, Number(e.target.value)))
+                    }
+                    disabled={isSubmitting}
+                    className="h-9 text-xs pr-8"
+                  />
+                  <Clock className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60 pointer-events-none" />
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  Number of free trial days (e.g., 0 for no trial, 7, 14, 30 days).
+                </span>
+              </div>
+
+              {/* Student Capacity Limit */}
               <div className="space-y-1.5">
                 <Label htmlFor="max_students" className="text-xs font-semibold">
                   Max Students Capacity
@@ -374,32 +374,14 @@ export default function CreatePackage() {
                   min="0"
                   placeholder="0 (Unlimited)"
                   value={maxStudents}
-                  onChange={(e) => setMaxStudents(e.target.value === "" ? "" : Number(e.target.value))}
+                  onChange={(e) =>
+                    setMaxStudents(e.target.value === "" ? "" : Number(e.target.value))
+                  }
                   disabled={isSubmitting}
                   className="h-9 text-xs"
                 />
                 <span className="text-[10px] text-muted-foreground">
-                  Set to 0 for unlimited students.
-                </span>
-              </div>
-
-              {/* Teacher Capacity */}
-              <div className="space-y-1.5">
-                <Label htmlFor="max_teachers" className="text-xs font-semibold">
-                  Max Teachers Capacity
-                </Label>
-                <Input
-                  id="max_teachers"
-                  type="number"
-                  min="0"
-                  placeholder="0 (Unlimited)"
-                  value={maxTeachers}
-                  onChange={(e) => setMaxTeachers(e.target.value === "" ? "" : Number(e.target.value))}
-                  disabled={isSubmitting}
-                  className="h-9 text-xs"
-                />
-                <span className="text-[10px] text-muted-foreground">
-                  Set to 0 for unlimited teachers.
+                  Enter 0 for unlimited students capacity.
                 </span>
               </div>
             </div>
@@ -407,9 +389,9 @@ export default function CreatePackage() {
             {/* Plan Status Toggle */}
             <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 bg-muted/20">
               <div className="space-y-0.5">
-                <div className="text-xs font-semibold text-foreground">Package Status</div>
+                <div className="text-xs font-semibold text-foreground">Plan Status</div>
                 <div className="text-[11px] text-muted-foreground">
-                  Active packages can be subscribed by schools and appear on public pricing.
+                  Active plans can be selected and subscribed by schools during registration.
                 </div>
               </div>
               <button
@@ -428,7 +410,7 @@ export default function CreatePackage() {
               </button>
             </div>
 
-            {/* Description */}
+            {/* Plan Description */}
             <div className="space-y-1.5">
               <Label htmlFor="description" className="text-xs font-semibold">
                 Plan Description
@@ -436,7 +418,7 @@ export default function CreatePackage() {
               <textarea
                 id="description"
                 rows={3}
-                placeholder="Plan description (optional)"
+                placeholder="Brief description of who this plan is tailored for (optional)..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={isSubmitting}
@@ -446,7 +428,7 @@ export default function CreatePackage() {
           </CardContent>
         </Card>
 
-        {/* SECTION 2: Items & Add-ons Repeater Table Card */}
+        {/* SECTION 2: Features & Add-ons Repeater Card */}
         <Card className="border-border/70 shadow-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -455,36 +437,43 @@ export default function CreatePackage() {
                   <Layers className="h-4 w-4" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-semibold">2. Features & Add-ons Repeater</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base font-semibold">
+                      2. Features & Add-ons Repeater
+                    </CardTitle>
+                    <Badge variant="secondary" className="text-[11px] font-mono">
+                      {items.length} {items.length === 1 ? "item" : "items"}
+                    </Badge>
+                  </div>
                   <CardDescription className="text-xs mt-0.5">
-                    Attached bundled features (free in plan) and optional paid add-ons. ({items.length} items)
+                    Dynamically add features, capabilities, or included modules with Item Name and Description.
                   </CardDescription>
                 </div>
               </div>
 
-              {items.length > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAddItem}
-                  disabled={isSubmitting}
-                  className="h-8 text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Feature / Item
-                </Button>
-              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddItem}
+                disabled={isSubmitting}
+                className="h-8 text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Item
+              </Button>
             </div>
           </CardHeader>
 
           <CardContent>
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-8 rounded-xl border border-dashed border-border/70 text-center bg-muted/10 space-y-2">
-                <Layers className="h-8 w-8 text-muted-foreground/50" />
-                <div className="text-xs font-semibold text-foreground">No features or add-ons added yet</div>
+                <Sparkles className="h-8 w-8 text-muted-foreground/40" />
+                <div className="text-xs font-semibold text-foreground">
+                  No features or add-ons added yet
+                </div>
                 <p className="text-[11px] text-muted-foreground max-w-sm">
-                  Add included notification quotas, cloud storage packs, or optional paid add-ons to this package.
+                  Click the button below to add included features, services, or add-ons to this plan.
                 </p>
                 <Button
                   type="button"
@@ -503,23 +492,28 @@ export default function CreatePackage() {
                   <Table className="text-xs">
                     <TableHeader className="bg-muted/40 text-muted-foreground">
                       <TableRow>
-                        <TableHead className="pl-4 min-w-[200px]">Item / Feature Name *</TableHead>
-                        <TableHead className="min-w-[140px]">Code</TableHead>
-                        <TableHead className="min-w-[160px]">Type</TableHead>
-                        <TableHead className="min-w-[120px]">Price (₹)</TableHead>
-                        <TableHead className="min-w-[130px]">Quota Limit</TableHead>
-                        <TableHead className="min-w-[150px]">Unit</TableHead>
-                        <TableHead className="min-w-[150px]">Billing</TableHead>
-                        <TableHead className="text-center w-14 pr-4">Action</TableHead>
+                        <TableHead className="w-12 pl-4 text-center font-semibold">#</TableHead>
+                        <TableHead className="min-w-[240px] font-semibold">
+                          Item Name <span className="text-destructive">*</span>
+                        </TableHead>
+                        <TableHead className="min-w-[320px] font-semibold">
+                          Description
+                        </TableHead>
+                        <TableHead className="text-center w-16 pr-4 font-semibold">Action</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {items.map((item, idx) => (
                         <TableRow key={idx}>
-                          {/* Name */}
-                          <TableCell className="pl-4 min-w-[200px]">
+                          {/* Index */}
+                          <TableCell className="pl-4 text-center text-muted-foreground font-mono font-medium text-xs">
+                            {idx + 1}
+                          </TableCell>
+
+                          {/* Item Name */}
+                          <TableCell className="min-w-[240px]">
                             <Input
-                              placeholder="Item / feature name"
+                              placeholder="e.g. Student Attendance & Leave Management"
                               value={item.item_name}
                               onChange={(e) => handleUpdateItem(idx, "item_name", e.target.value)}
                               disabled={isSubmitting}
@@ -528,132 +522,18 @@ export default function CreatePackage() {
                             />
                           </TableCell>
 
-                          {/* Code */}
-                          <TableCell className="min-w-[140px]">
+                          {/* Description */}
+                          <TableCell className="min-w-[320px]">
                             <Input
-                              placeholder="Item code"
-                              value={item.item_code || ""}
-                              onChange={(e) => handleUpdateItem(idx, "item_code", e.target.value.toUpperCase())}
-                              disabled={isSubmitting}
-                              className="h-8 text-xs font-mono text-[11px]"
-                            />
-                          </TableCell>
-
-                          {/* Type */}
-                          <TableCell className="min-w-[160px]">
-                            <Select
-                              value={item.item_type}
-                              onValueChange={(val) => handleUpdateItem(idx, "item_type", val as ItemType)}
-                              items={ITEM_TYPE_LABELS}
-                              itemToStringLabel={(val) => ITEM_TYPE_LABELS[val as ItemType] || String(val)}
-                              disabled={isSubmitting}
-                            >
-                              <SelectTrigger className="h-8 text-xs w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {(Object.keys(ITEM_TYPE_LABELS) as ItemType[]).map((t) => (
-                                  <SelectItem
-                                    key={t}
-                                    value={t}
-                                    label={ITEM_TYPE_LABELS[t]}
-                                    className="text-xs cursor-pointer"
-                                  >
-                                    {ITEM_TYPE_LABELS[t]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-
-                          {/* Price */}
-                          <TableCell className="min-w-[120px]">
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              placeholder="0.00"
-                              value={item.item_type === "included" ? 0 : item.price}
-                              onChange={(e) => handleUpdateItem(idx, "price", parseFloat(e.target.value) || 0)}
-                              disabled={isSubmitting || item.item_type === "included"}
-                              className={`h-8 text-xs ${item.item_type === "included" ? "opacity-60 bg-muted/40" : ""}`}
-                            />
-                          </TableCell>
-
-                          {/* Quota Limit */}
-                          <TableCell className="min-w-[130px]">
-                            <Input
-                              type="number"
-                              min="0"
-                              placeholder="Unlimited"
-                              value={item.quota_limit ?? ""}
-                              onChange={(e) =>
-                                handleUpdateItem(
-                                  idx,
-                                  "quota_limit",
-                                  e.target.value === "" ? null : Number(e.target.value)
-                                )
-                              }
+                              placeholder="e.g. Daily digital attendance, RFID tap sync, and instant SMS parent alerts"
+                              value={item.description}
+                              onChange={(e) => handleUpdateItem(idx, "description", e.target.value)}
                               disabled={isSubmitting}
                               className="h-8 text-xs"
                             />
                           </TableCell>
 
-                          {/* Unit */}
-                          <TableCell className="min-w-[150px]">
-                            <Select
-                              value={item.unit || "notifications"}
-                              onValueChange={(val) => handleUpdateItem(idx, "unit", val)}
-                              items={UNIT_LABELS}
-                              itemToStringLabel={(val) => UNIT_LABELS[val] || String(val)}
-                              disabled={isSubmitting}
-                            >
-                              <SelectTrigger className="h-8 text-xs w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Object.keys(UNIT_LABELS).map((u) => (
-                                  <SelectItem
-                                    key={u}
-                                    value={u}
-                                    label={UNIT_LABELS[u]}
-                                    className="text-xs cursor-pointer"
-                                  >
-                                    {UNIT_LABELS[u]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-
-                          {/* Billing Type */}
-                          <TableCell className="min-w-[150px]">
-                            <Select
-                              value={item.billing_type || "recurring"}
-                              onValueChange={(val) => handleUpdateItem(idx, "billing_type", val as BillingType)}
-                              items={BILLING_TYPE_LABELS}
-                              itemToStringLabel={(val) => BILLING_TYPE_LABELS[val as BillingType] || String(val)}
-                              disabled={isSubmitting}
-                            >
-                              <SelectTrigger className="h-8 text-xs w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {(Object.keys(BILLING_TYPE_LABELS) as BillingType[]).map((b) => (
-                                  <SelectItem
-                                    key={b}
-                                    value={b}
-                                    label={BILLING_TYPE_LABELS[b]}
-                                    className="text-xs cursor-pointer"
-                                  >
-                                    {BILLING_TYPE_LABELS[b]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-
-                          {/* Action */}
+                          {/* Delete Action */}
                           <TableCell className="text-center pr-4">
                             <Button
                               type="button"
@@ -671,6 +551,20 @@ export default function CreatePackage() {
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAddItem}
+                    disabled={isSubmitting}
+                    className="h-7 text-xs font-medium gap-1 text-primary hover:text-primary cursor-pointer"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add Another Item
+                  </Button>
                 </div>
               </div>
             )}
@@ -699,12 +593,12 @@ export default function CreatePackage() {
             {isSubmitting ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Creating Package...
+                Creating Plan...
               </>
             ) : (
               <>
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Create Package
+                Create Plan
               </>
             )}
           </Button>
