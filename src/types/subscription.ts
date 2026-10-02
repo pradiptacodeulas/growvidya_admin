@@ -129,7 +129,9 @@ export interface SchoolSubscription {
   verified_by?: number | null
   verified_by_name?: string | null
   verified_at?: string | null
+  rejection_reason?: string | null
   created_at: string
+  updated_at?: string | null
 }
 
 export interface SubscriptionCounts {

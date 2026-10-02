@@ -77,9 +77,6 @@ export default function SchoolsSubscriptions() {
   const [rejectionReason, setRejectionReason] = useState<string>("")
   const [isRejecting, setIsRejecting] = useState<boolean>(false)
 
-  const [selectedSubForView, setSelectedSubForView] = useState<SchoolSubscription | null>(null)
-  const [isViewOpen, setIsViewOpen] = useState<boolean>(false)
-
   // Fetch subscriptions from database
   const loadSubscriptions = useCallback(async () => {
     if (!token) return
@@ -665,18 +662,16 @@ export default function SchoolsSubscriptions() {
                             </>
                           )}
 
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setSelectedSubForView(sub)
-                              setIsViewOpen(true)
-                            }}
-                            className="text-xs h-8 px-2 text-muted-foreground hover:text-foreground cursor-pointer"
-                            title="View Subscription Details"
-                          >
-                            <Eye className="size-3.5" />
-                          </Button>
+                          <Link to={`/subscriptions/${sub.id}`}>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs h-8 px-2 text-muted-foreground hover:text-foreground cursor-pointer"
+                              title="View Subscription Details"
+                            >
+                              <Eye className="size-3.5" />
+                            </Button>
+                          </Link>
                         </div>
                       </td>
                     </tr>
@@ -891,113 +886,6 @@ export default function SchoolsSubscriptions() {
             >
               {isRejecting ? "Rejecting..." : "Confirm Rejection"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* View Details Dialog */}
-      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Eye className="size-5 text-primary" />
-              Subscription Details
-            </DialogTitle>
-            <DialogDescription>
-              Complete record details for #{selectedSubForView?.id}
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedSubForView && (
-            <div className="space-y-3 py-2 text-sm">
-              <div className="grid grid-cols-2 gap-2 text-xs p-3 rounded-lg bg-muted/50 border">
-                <div>
-                  <span className="text-muted-foreground block">School:</span>
-                  <span className="font-semibold text-foreground">
-                    {selectedSubForView.school_name} ({selectedSubForView.school_code})
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Contact Email:</span>
-                  <span className="text-foreground">{selectedSubForView.school_email || "N/A"}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Plan Name:</span>
-                  <span className="font-semibold text-foreground">
-                    {selectedSubForView.plan_name} ({selectedSubForView.billing_cycle})
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Plan Status:</span>
-                  <span>{renderStatusBadge(selectedSubForView.status)}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Amount Paid:</span>
-                  <span className="font-bold text-foreground">
-                    ₹{parseFloat(String(selectedSubForView.amount_paid || 0)).toLocaleString("en-IN")}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Payment Status:</span>
-                  <span>{renderPaymentBadge(selectedSubForView.payment_status)}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Transaction Ref:</span>
-                  <span className="font-mono text-xs">{selectedSubForView.payment_transaction_id || "None"}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Payment Gateway:</span>
-                  <span className="capitalize">{selectedSubForView.payment_gateway || "Direct"}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Start Date:</span>
-                  <span>{selectedSubForView.start_date || "Pending Approval"}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">End Date:</span>
-                  <span>{selectedSubForView.end_date || "Pending Approval"}</span>
-                </div>
-              </div>
-
-              {selectedSubForView.verification_notes && (
-                <div className="p-3 rounded-lg bg-muted/40 border text-xs">
-                  <span className="text-muted-foreground font-semibold block mb-1">
-                    Verification / Admin Notes:
-                  </span>
-                  <p className="text-foreground whitespace-pre-wrap">
-                    {selectedSubForView.verification_notes}
-                  </p>
-                </div>
-              )}
-
-              {selectedSubForView.verified_by_name && (
-                <div className="text-xs text-muted-foreground">
-                  Verified by:{" "}
-                  <span className="font-semibold text-foreground">
-                    {selectedSubForView.verified_by_name}
-                  </span>{" "}
-                  at {selectedSubForView.verified_at ? new Date(selectedSubForView.verified_at).toLocaleString() : ""}
-                </div>
-              )}
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button size="sm" variant="outline" onClick={() => setIsViewOpen(false)} className="cursor-pointer">
-              Close
-            </Button>
-            {selectedSubForView?.status === "pending" && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  setIsViewOpen(false)
-                  if (selectedSubForView) handleOpenApprove(selectedSubForView)
-                }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold cursor-pointer"
-              >
-                Proceed to Approve
-              </Button>
-            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

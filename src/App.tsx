@@ -12,6 +12,7 @@ import { ProfileDropdown } from "@/components/ProfileDropdown"
 import Login from "@/pages/Login"
 import Overview from "@/pages/Overview"
 import Subscriptions from "@/pages/Subscriptions"
+import SubscriptionDetails from "@/pages/SubscriptionDetails"
 import Coupons from "@/pages/Coupons"
 import CreateCoupon from "@/pages/CreateCoupon"
 import EditCoupon from "@/pages/EditCoupon"
@@ -70,6 +71,9 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
   }, [dispatch, isAuthenticated])
 
   const getPageTitle = (pathname: string) => {
+    if (pathname.startsWith("/subscriptions/") || pathname.startsWith("/schools-subscriptions/")) {
+      return "Subscription Details"
+    }
     if (pathname === "/coupons/create") {
       return "Create Coupon"
     }
@@ -200,7 +204,9 @@ function AppRoutes() {
                 <Route path="/" element={<Navigate to="/overview" replace />} />
                 <Route path="/overview" element={<Overview />} />
                 <Route path="/subscriptions" element={<Subscriptions />} />
+                <Route path="/subscriptions/:id" element={<SubscriptionDetails />} />
                 <Route path="/schools-subscriptions" element={<Navigate to="/subscriptions" replace />} />
+                <Route path="/schools-subscriptions/:id" element={<SubscriptionDetails />} />
                 <Route path="/attendance-machines" element={<AttendanceMachines />} />
                 <Route path="/attendance-machines/create" element={<CreateAttendanceMachine />} />
                 <Route path="/attendance-machines/:id" element={<AttendanceMachineDetails />} />
