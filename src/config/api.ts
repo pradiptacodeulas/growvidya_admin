@@ -1,8 +1,6 @@
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://192.168.29.243:5001/api/v1/saas-admin"
+export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || ""
 
-export const SERVER_BASE_URL =
-  import.meta.env.VITE_SERVER_BASE_URL || "http://192.168.29.243:5001"
+export const SERVER_BASE_URL: string = import.meta.env.VITE_SERVER_BASE_URL || ""
 
 /**
  * Helper to get a full accessible image URL from a relative or absolute path.
