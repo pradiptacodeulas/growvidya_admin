@@ -1,20 +1,14 @@
-export type ItemType = 'included' | 'addon' | 'usage_based'
-export type BillingType = 'recurring' | 'one_time' | 'per_unit'
 export type BillingCycle = 'monthly' | 'quarterly' | 'half_yearly' | 'annual' | 'trial'
 
 export interface SubscriptionItem {
   id?: number
   sub_id?: number
-  item_name: string // e.g. "SMS Notifications", "Push Notifications"
-  item_code?: string | null // e.g. "SMS_PACK", "PUSH_NOTIF", "RFID_MODULE"
-  item_type: ItemType
-  price: number | string // 0.00 if included in plan, or cost if addon
-  quota_limit?: number | null // e.g. 10000, null for unlimited
-  unit?: string | null // "messages", "notifications", "gb", "license", "flat"
-  billing_type: BillingType
+  item_name: string // e.g. "Student information", "Fee management"
+  item_code?: string | null // e.g. "STUDENT_INFORMATION", "FEE_MANAGEMENT"
   description?: string | null
   status: 1 | 0 // 1 = Active, 0 = Inactive
-  display_order?: number
+  created_at?: string
+  updated_at?: string
 }
 
 export interface SubscriptionPackage {
@@ -62,14 +56,8 @@ export interface UpdatePackagePayload {
 export interface CreateItemPayload {
   item_name: string
   item_code?: string | null
-  item_type: ItemType
-  price: number | string
-  quota_limit?: number | null
-  unit?: string | null
-  billing_type: BillingType
   description?: string | null
   status?: 1 | 0
-  display_order?: number
 }
 
 export interface PackagesApiResponse {

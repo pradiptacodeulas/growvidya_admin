@@ -164,17 +164,11 @@ export default function CreatePackage() {
     setIsSubmitting(true)
 
     try {
-      const cleanedItems = items.map((it, idx) => ({
+      const cleanedItems = items.map((it) => ({
         item_name: it.item_name.trim(),
         description: it.description?.trim() || "",
         item_code: slugify(it.item_name).toUpperCase(),
-        item_type: "included" as const,
-        price: 0,
-        quota_limit: null,
-        unit: null,
-        billing_type: "recurring" as const,
         status: 1 as const,
-        display_order: idx + 1,
       }))
 
       await createPackageApi(token, {

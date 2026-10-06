@@ -12,8 +12,6 @@ import {
 import type {
   SubscriptionPackage,
   SubscriptionItem,
-  ItemType,
-  BillingType,
 } from "@/types/subscription"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,13 +25,6 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Table,
   TableHeader,
@@ -57,49 +48,8 @@ import {
   Trash2,
   Loader2,
   Sparkles,
-  Zap,
   X,
 } from "lucide-react"
-
-const ITEM_TYPES: { value: ItemType; label: string }[] = [
-  { value: "included", label: "Included (Free)" },
-  { value: "addon", label: "Paid Add-on" },
-  { value: "usage_based", label: "Usage Based" },
-]
-
-const ITEM_TYPE_LABELS: Record<ItemType, string> = {
-  included: "Included (Free)",
-  addon: "Paid Add-on",
-  usage_based: "Usage Based",
-}
-
-const UNITS = [
-  { value: "notifications", label: "Notifications" },
-  { value: "messages", label: "Messages (SMS/Email)" },
-  { value: "gb", label: "Gigabytes (GB)" },
-  { value: "license", label: "Licenses" },
-  { value: "flat", label: "Flat" },
-]
-
-const UNIT_LABELS: Record<string, string> = {
-  notifications: "Notifications",
-  messages: "Messages (SMS/Email)",
-  gb: "Gigabytes (GB)",
-  license: "Licenses",
-  flat: "Flat",
-}
-
-const BILLING_TYPES: { value: BillingType; label: string }[] = [
-  { value: "recurring", label: "Recurring" },
-  { value: "one_time", label: "One-Time" },
-  { value: "per_unit", label: "Per Unit" },
-]
-
-const BILLING_TYPE_LABELS: Record<BillingType, string> = {
-  recurring: "Recurring",
-  one_time: "One-Time",
-  per_unit: "Per Unit",
-}
 
 function slugify(text: string): string {
   return text
@@ -119,15 +69,10 @@ export default function PackageItems() {
   const [items, setItems] = useState<SubscriptionItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  // Add Item Inline Form State
+  // Add Feature Inline Form State
   const [isAddingItem, setIsAddingItem] = useState(false)
   const [itemName, setItemName] = useState("")
   const [itemCode, setItemCode] = useState("")
-  const [itemType, setItemType] = useState<ItemType>("included")
-  const [itemPrice, setItemPrice] = useState("0")
-  const [itemQuota, setItemQuota] = useState("")
-  const [itemUnit, setItemUnit] = useState("notifications")
-  const [itemBillingType, setItemBillingType] = useState<BillingType>("recurring")
   const [itemDescription, setItemDescription] = useState("")
   const [isSavingNewItem, setIsSavingNewItem] = useState(false)
 
@@ -149,7 +94,7 @@ export default function PackageItems() {
       setItems(itemsData || [])
     } catch (err: unknown) {
       const error = err as Error
-      toast.error(error.message || "Failed to load package features and add-ons.")
+      toast.error(error.message || "Failed to load package features.")
     } finally {
       setIsLoading(false)
     }
@@ -171,22 +116,16 @@ export default function PackageItems() {
     if (!token || !pkg) return
 
     if (!itemName.trim()) {
-      toast.error("Item name is required.")
+      toast.error("Feature name is required.")
       return
     }
 
-    const price = itemType === "included" ? 0 : parseFloat(itemPrice) || 0
     setIsSavingNewItem(true)
 
     try {
       const created = await addItemToPackageApi(token, pkg.id, {
         item_name: itemName.trim(),
         item_code: itemCode.trim() || slugify(itemName).toUpperCase(),
-        item_type: itemType,
-        price,
-        quota_limit: itemQuota ? Number(itemQuota) : null,
-        unit: itemUnit,
-        billing_type: itemBillingType,
         description: itemDescription.trim() || null,
         status: 1,
       })
@@ -195,13 +134,11 @@ export default function PackageItems() {
       setIsAddingItem(false)
       setItemName("")
       setItemCode("")
-      setItemPrice("0")
-      setItemQuota("")
       setItemDescription("")
       toast.success(`Feature "${created.item_name}" added successfully.`)
     } catch (err: unknown) {
       const error = err as Error
-      toast.error(error.message || "Failed to add feature or add-on.")
+      toast.error(error.message || "Failed to add feature.")
     } finally {
       setIsSavingNewItem(false)
     }
@@ -222,7 +159,7 @@ export default function PackageItems() {
       )
     } catch (err: unknown) {
       const error = err as Error
-      toast.error(error.message || "Failed to update item status.")
+      toast.error(error.message || "Failed to update feature status.")
     } finally {
       setTogglingItemId(null)
     }
@@ -239,7 +176,7 @@ export default function PackageItems() {
       setItemToDelete(null)
     } catch (err: unknown) {
       const error = err as Error
-      toast.error(error.message || "Failed to delete item.")
+      toast.error(error.message || "Failed to delete feature.")
     } finally {
       setIsDeletingItem(false)
     }
@@ -247,7 +184,7 @@ export default function PackageItems() {
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Single Back Button & Header */}
+      {/* Back Button & Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button
@@ -262,15 +199,15 @@ export default function PackageItems() {
 
           <div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-              {pkg ? `${pkg.plan_name} — Features & Add-ons` : "Features & Add-ons"}
+              {pkg ? `${pkg.plan_name} — Included Features` : "Included Features"}
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Manage bundled features (free) and optional paid add-ons for this package.
+              Manage the dynamic list of features and modules bundled in this plan.
             </p>
           </div>
         </div>
 
-        {/* Single Add Feature Button */}
+        {/* Add Feature Button */}
         {!isAddingItem && !isLoading && (
           <Button
             size="sm"
@@ -278,7 +215,7 @@ export default function PackageItems() {
             className="gap-2 h-9 text-xs font-semibold cursor-pointer shadow-xs self-start sm:self-auto"
           >
             <Plus className="h-4 w-4" />
-            Add Feature / Add-on
+            Add Feature
           </Button>
         )}
       </div>
@@ -344,10 +281,10 @@ export default function PackageItems() {
               </div>
               <div>
                 <CardTitle className="text-sm font-semibold text-primary">
-                  New Feature / Add-on Configuration
+                  New Feature Configuration
                 </CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Attach an included quota or optional paid add-on to {pkg?.plan_name}.
+                  Attach an included module or capability to {pkg?.plan_name}.
                 </CardDescription>
               </div>
             </div>
@@ -367,11 +304,11 @@ export default function PackageItems() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="item_name" className="text-xs font-semibold">
-                    Item Name <span className="text-destructive">*</span>
+                    Feature Name <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="item_name"
-                    placeholder="e.g. Cloud Storage 50GB"
+                    placeholder="e.g. Attendance & Leave"
                     value={itemName}
                     onChange={(e) => handleNameChange(e.target.value)}
                     disabled={isSavingNewItem}
@@ -382,11 +319,11 @@ export default function PackageItems() {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="item_code" className="text-xs font-semibold">
-                    Item Code
+                    Feature Code
                   </Label>
                   <Input
                     id="item_code"
-                    placeholder="e.g. STORAGE_50GB"
+                    placeholder="e.g. ATTENDANCE_LEAVE"
                     value={itemCode}
                     onChange={(e) => setItemCode(e.target.value.toUpperCase())}
                     disabled={isSavingNewItem}
@@ -394,128 +331,13 @@ export default function PackageItems() {
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="item_type" className="text-xs font-semibold">
-                    Item Type
-                  </Label>
-                  <Select
-                    items={ITEM_TYPE_LABELS}
-                    itemToStringLabel={(val) => ITEM_TYPE_LABELS[val as ItemType] || String(val || "")}
-                    value={itemType}
-                    onValueChange={(val) => {
-                      if (val) {
-                        const typeVal = val as ItemType
-                        setItemType(typeVal)
-                        if (typeVal === "included") setItemPrice("0")
-                      }
-                    }}
-                    disabled={isSavingNewItem}
-                  >
-                    <SelectTrigger id="item_type" className="h-9 text-xs">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ITEM_TYPES.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>
-                          {t.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="item_price" className="text-xs font-semibold">
-                    Price (₹ INR)
-                  </Label>
-                  <Input
-                    id="item_price"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={itemType === "included" ? 0 : itemPrice}
-                    onChange={(e) => setItemPrice(e.target.value)}
-                    disabled={isSavingNewItem || itemType === "included"}
-                    className={`h-9 text-xs ${itemType === "included" ? "opacity-60 bg-muted/40" : ""}`}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="item_quota" className="text-xs font-semibold">
-                    Quota Limit
-                  </Label>
-                  <Input
-                    id="item_quota"
-                    type="number"
-                    min="0"
-                    placeholder="Blank for unlimited"
-                    value={itemQuota}
-                    onChange={(e) => setItemQuota(e.target.value)}
-                    disabled={isSavingNewItem}
-                    className="h-9 text-xs"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="item_unit" className="text-xs font-semibold">
-                    Unit
-                  </Label>
-                  <Select
-                    items={UNIT_LABELS}
-                    itemToStringLabel={(val) => UNIT_LABELS[val as string] || String(val || "")}
-                    value={itemUnit}
-                    onValueChange={(val) => {
-                      if (val) setItemUnit(val as string)
-                    }}
-                    disabled={isSavingNewItem}
-                  >
-                    <SelectTrigger id="item_unit" className="h-9 text-xs">
-                      <SelectValue placeholder="Select unit" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {UNITS.map((u) => (
-                        <SelectItem key={u.value} value={u.value}>
-                          {u.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="item_billing_type" className="text-xs font-semibold">
-                    Billing Type
-                  </Label>
-                  <Select
-                    items={BILLING_TYPE_LABELS}
-                    itemToStringLabel={(val) => BILLING_TYPE_LABELS[val as BillingType] || String(val || "")}
-                    value={itemBillingType}
-                    onValueChange={(val) => {
-                      if (val) setItemBillingType(val as BillingType)
-                    }}
-                    disabled={isSavingNewItem}
-                  >
-                    <SelectTrigger id="item_billing_type" className="h-9 text-xs">
-                      <SelectValue placeholder="Select billing type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BILLING_TYPES.map((b) => (
-                        <SelectItem key={b.value} value={b.value}>
-                          {b.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5 sm:col-span-2">
+                <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
                   <Label htmlFor="item_description" className="text-xs font-semibold">
                     Description (Optional)
                   </Label>
                   <Input
                     id="item_description"
-                    placeholder="Brief description of this feature or add-on..."
+                    placeholder="Brief description of this feature..."
                     value={itemDescription}
                     onChange={(e) => setItemDescription(e.target.value)}
                     disabled={isSavingNewItem}
@@ -544,10 +366,10 @@ export default function PackageItems() {
                   {isSavingNewItem ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Saving to Database...
+                      Saving...
                     </>
                   ) : (
-                    "Save Item"
+                    "Save Feature"
                   )}
                 </Button>
               </div>
@@ -565,10 +387,10 @@ export default function PackageItems() {
             </div>
             <div>
               <CardTitle className="text-base font-semibold">
-                Configured Features & Add-ons ({items.length})
+                Configured Features ({items.length})
               </CardTitle>
               <CardDescription className="text-xs mt-0.5">
-                Included services, notification capacities, and paid add-ons available for this plan.
+                Dynamic features and capabilities bundled into this subscription plan.
               </CardDescription>
             </div>
           </div>
@@ -584,9 +406,9 @@ export default function PackageItems() {
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-12 rounded-xl border border-dashed border-border/70 text-center bg-muted/10 space-y-2">
               <Layers className="h-10 w-10 text-muted-foreground/40" />
-              <div className="text-sm font-semibold text-foreground">No features or add-ons configured</div>
+              <div className="text-sm font-semibold text-foreground">No features configured</div>
               <p className="text-xs text-muted-foreground max-w-sm">
-                This package does not have any attached child items. You can add bundled notification quotas or paid add-ons.
+                This plan does not have any attached features yet. You can add included modules such as Student Information, Fee Management, etc.
               </p>
               {!isAddingItem && (
                 <Button
@@ -596,7 +418,7 @@ export default function PackageItems() {
                   className="h-8 text-xs font-semibold gap-1.5 cursor-pointer mt-2"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Add First Feature / Add-on
+                  Add First Feature
                 </Button>
               )}
             </div>
@@ -605,13 +427,9 @@ export default function PackageItems() {
               <Table className="text-xs">
                 <TableHeader className="bg-muted/40 text-muted-foreground">
                   <TableRow>
-                    <TableHead className="pl-4 min-w-[200px]">Item / Feature Name</TableHead>
-                    <TableHead className="min-w-[140px]">Code</TableHead>
-                    <TableHead className="min-w-[150px]">Type</TableHead>
-                    <TableHead className="min-w-[120px]">Price (₹)</TableHead>
-                    <TableHead className="min-w-[130px]">Quota Limit</TableHead>
-                    <TableHead className="min-w-[130px]">Unit</TableHead>
-                    <TableHead className="min-w-[130px]">Billing</TableHead>
+                    <TableHead className="pl-4 min-w-[240px]">Feature Name</TableHead>
+                    <TableHead className="min-w-[160px]">Code</TableHead>
+                    <TableHead className="min-w-[260px]">Description</TableHead>
                     <TableHead className="text-center w-24">Status</TableHead>
                     <TableHead className="text-center w-14 pr-4">Action</TableHead>
                   </TableRow>
@@ -622,53 +440,16 @@ export default function PackageItems() {
 
                     return (
                       <TableRow key={item.id || item.item_name}>
-                        <TableCell className="pl-4 font-semibold text-foreground min-w-[200px]">
-                          <div>{item.item_name}</div>
-                          {item.description && (
-                            <div className="text-[11px] text-muted-foreground font-normal line-clamp-1">
-                              {item.description}
-                            </div>
-                          )}
+                        <TableCell className="pl-4 font-semibold text-foreground min-w-[240px]">
+                          {item.item_name}
                         </TableCell>
 
-                        <TableCell className="min-w-[140px] font-mono text-[11px] text-muted-foreground">
+                        <TableCell className="min-w-[160px] font-mono text-[11px] text-muted-foreground">
                           {item.item_code || "—"}
                         </TableCell>
 
-                        <TableCell className="min-w-[150px]">
-                          {item.item_type === "included" ? (
-                            <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30 bg-emerald-500/10">
-                              Included (Free)
-                            </Badge>
-                          ) : item.item_type === "addon" ? (
-                            <Badge variant="secondary" className="text-[10px] gap-1 bg-amber-500/10 text-amber-600 border border-amber-500/30">
-                              <Zap className="h-3 w-3" /> Paid Add-on
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-[10px]">
-                              Usage Based
-                            </Badge>
-                          )}
-                        </TableCell>
-
-                        <TableCell className="min-w-[120px] font-semibold text-foreground">
-                          {item.item_type === "included" || Number(item.price) === 0
-                            ? "Free"
-                            : `₹${Number(item.price).toLocaleString("en-IN")}`}
-                        </TableCell>
-
-                        <TableCell className="min-w-[130px] text-foreground">
-                          {item.quota_limit
-                            ? Number(item.quota_limit).toLocaleString("en-IN")
-                            : "Unlimited"}
-                        </TableCell>
-
-                        <TableCell className="min-w-[130px] capitalize text-muted-foreground">
-                          {item.unit || "—"}
-                        </TableCell>
-
-                        <TableCell className="min-w-[130px] capitalize text-muted-foreground">
-                          {item.billing_type?.replace("_", " ") || "—"}
+                        <TableCell className="min-w-[260px] text-muted-foreground">
+                          {item.description || "—"}
                         </TableCell>
 
                         {/* Status Toggle Button */}
@@ -698,7 +479,7 @@ export default function PackageItems() {
                             size="icon"
                             onClick={() => setItemToDelete(item)}
                             className="h-7 w-7 text-destructive hover:bg-destructive/10 cursor-pointer"
-                            title="Delete item"
+                            title="Delete feature"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -721,7 +502,7 @@ export default function PackageItems() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-destructive">
-              Delete Feature / Add-on
+              Delete Feature
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               Are you sure you want to remove &ldquo;{itemToDelete?.item_name}&rdquo; from {pkg?.plan_name}? This change will take effect immediately in the database.
@@ -752,7 +533,7 @@ export default function PackageItems() {
                   Deleting...
                 </>
               ) : (
-                "Delete Item"
+                "Delete Feature"
               )}
             </Button>
           </DialogFooter>

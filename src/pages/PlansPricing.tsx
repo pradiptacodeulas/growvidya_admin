@@ -33,7 +33,6 @@ import {
   Trash2,
   AlertCircle,
   CreditCard,
-  Zap,
   Clock,
 } from "lucide-react"
 
@@ -111,13 +110,12 @@ export default function PlansPricing() {
     const total = packages.length
     const active = packages.filter((p) => p.status === 1).length
     const totalItems = packages.reduce((acc, p) => acc + (p.items?.length || 0), 0)
-    const totalAddons = packages.reduce(
+    const activeItems = packages.reduce(
       (acc, p) =>
-        acc +
-        (p.items?.filter((it) => it.item_type === "addon" || it.item_type === "usage_based").length || 0),
+        acc + (p.items?.filter((it) => it.status === 1).length || 0),
       0
     )
-    return { total, active, totalItems, totalAddons }
+    return { total, active, totalItems, activeItems }
   }, [packages])
 
   // Status toggle handler
@@ -279,16 +277,16 @@ export default function PlansPricing() {
           </CardContent>
         </Card>
 
-        {/* Paid Add-ons */}
+        {/* Active Features */}
         <Card className="border-border/70 shadow-sm">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
-              <span className="text-xs font-medium text-muted-foreground">Available Add-ons</span>
-              <div className="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400">
-                {isLoading ? <Skeleton className="h-7 w-12" /> : metrics.totalAddons}
+              <span className="text-xs font-medium text-muted-foreground">Active Features</span>
+              <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+                {isLoading ? <Skeleton className="h-7 w-12" /> : metrics.activeItems}
               </div>
             </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
               <Sparkles className="h-5 w-5" />
             </div>
           </CardContent>
@@ -466,9 +464,7 @@ export default function PlansPricing() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPackages.map((pkg) => {
             const isToggling = togglingPackageId === pkg.id
-            const includedItems = pkg.items?.filter((it) => it.item_type === "included") || []
-            const addonItems =
-              pkg.items?.filter((it) => it.item_type === "addon" || it.item_type === "usage_based") || []
+            const planItems = pkg.items || []
 
             return (
               <Card
@@ -563,59 +559,35 @@ export default function PlansPricing() {
                   {/* Included Features List */}
                   <div className="space-y-2">
                     <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                      Included in Plan ({includedItems.length})
+                      Included Features ({planItems.length})
                     </span>
-                    {includedItems.length === 0 ? (
+                    {planItems.length === 0 ? (
                       <div className="text-xs text-muted-foreground italic">
-                        No features bundled directly in base price.
+                        No features added yet.
                       </div>
                     ) : (
                       <ul className="space-y-1.5 text-xs text-foreground">
-                        {includedItems.slice(0, 4).map((it, idx) => (
-                          <li key={idx} className="flex items-start gap-2">
+                        {planItems.slice(0, 4).map((it, idx) => (
+                          <li key={it.id || idx} className="flex items-start gap-2">
                             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
                             <span className="line-clamp-1">
                               {it.item_name}
-                              {it.quota_limit ? (
+                              {it.description ? (
                                 <span className="text-muted-foreground ml-1">
-                                  ({Number(it.quota_limit).toLocaleString("en-IN")} {it.unit || ""})
+                                  — {it.description}
                                 </span>
                               ) : null}
                             </span>
                           </li>
                         ))}
-                        {includedItems.length > 4 && (
+                        {planItems.length > 4 && (
                           <li className="text-[11px] text-muted-foreground pl-5.5">
-                            + {includedItems.length - 4} more features included
+                            + {planItems.length - 4} more features included
                           </li>
                         )}
                       </ul>
                     )}
                   </div>
-
-                  {/* Optional Paid Add-ons */}
-                  {addonItems.length > 0 && (
-                    <div className="space-y-2 pt-1 border-t border-border/40">
-                      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                        Optional Add-ons ({addonItems.length})
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {addonItems.map((addon, idx) => (
-                          <Badge
-                            key={idx}
-                            variant="secondary"
-                            className="text-[10px] font-medium gap-1 py-0.5 px-2 bg-muted/60"
-                          >
-                            <Zap className="h-3 w-3 text-amber-500" />
-                            <span>{addon.item_name}</span>
-                            <span className="font-bold text-foreground">
-                              +₹{Number(addon.price).toLocaleString("en-IN")}
-                            </span>
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {/* Card Footer Actions */}
