@@ -427,3 +427,23 @@ export async function extendSubscriptionApi(
   return handleResponse<{ success: boolean; message: string }>(response, "Failed to extend subscription.")
 }
 
+/**
+ * Super Admin: Update subscription status (Active, Inactive/Suspended, etc.)
+ */
+export async function updateSubscriptionStatusApi(
+  token: string,
+  id: number,
+  payload: { status: 'active' | 'suspended' | 'expired' | 'trial' | 'inactive'; notes?: string }
+): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/subscriptions/${id}/status`, {
+    method: "PATCH",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  })
+
+  return handleResponse<{ success: boolean; message: string }>(
+    response,
+    "Failed to update subscription status."
+  )
+}
+

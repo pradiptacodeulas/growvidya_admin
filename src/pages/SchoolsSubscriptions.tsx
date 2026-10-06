@@ -19,6 +19,7 @@ import {
   fetchSubscriptionsApi,
   approveSubscriptionApi,
   rejectSubscriptionApi,
+  updateSubscriptionStatusApi,
 } from "@/services/subscriptionService"
 import type {
   SchoolSubscription,
@@ -39,6 +40,8 @@ import {
   Ban,
   Eye,
   Check,
+  Power,
+  PowerOff,
 } from "lucide-react"
 
 export default function SchoolsSubscriptions() {
@@ -76,6 +79,13 @@ export default function SchoolsSubscriptions() {
   const [isRejectOpen, setIsRejectOpen] = useState<boolean>(false)
   const [rejectionReason, setRejectionReason] = useState<string>("")
   const [isRejecting, setIsRejecting] = useState<boolean>(false)
+
+  // Active <-> Inactive toggle modal state
+  const [selectedSubForStatusChange, setSelectedSubForStatusChange] = useState<SchoolSubscription | null>(null)
+  const [targetStatus, setTargetStatus] = useState<"active" | "suspended">("suspended")
+  const [statusChangeNotes, setStatusChangeNotes] = useState<string>("")
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState<boolean>(false)
+  const [isSubmittingStatus, setIsSubmittingStatus] = useState<boolean>(false)
 
   // Fetch subscriptions from database
   const loadSubscriptions = useCallback(async () => {
@@ -180,6 +190,39 @@ export default function SchoolsSubscriptions() {
     }
   }
 
+  // Open Toggle Status Modal (Active <-> Inactive)
+  const handleOpenToggleStatus = (sub: SchoolSubscription, newStatus: "active" | "suspended") => {
+    setSelectedSubForStatusChange(sub)
+    setTargetStatus(newStatus)
+    setStatusChangeNotes("")
+    setIsStatusModalOpen(true)
+  }
+
+  // Submit Status Change (Active <-> Inactive)
+  const handleConfirmStatusChange = async () => {
+    if (!token || !selectedSubForStatusChange) return
+    try {
+      setIsSubmittingStatus(true)
+      await updateSubscriptionStatusApi(token, selectedSubForStatusChange.id, {
+        status: targetStatus,
+        notes: statusChangeNotes.trim() || undefined,
+      })
+
+      const actionName = targetStatus === "active" ? "activated" : "marked inactive"
+      toast.success(
+        `Subscription for "${selectedSubForStatusChange.school_name}" has been ${actionName} successfully.`
+      )
+      setIsStatusModalOpen(false)
+      setSelectedSubForStatusChange(null)
+      loadSubscriptions()
+    } catch (err: any) {
+      console.error("Status update error:", err)
+      toast.error(err?.message || "Failed to update subscription status.")
+    } finally {
+      setIsSubmittingStatus(false)
+    }
+  }
+
   // Status badge styling helper
   const renderStatusBadge = (status: string) => {
     switch (status) {
@@ -214,8 +257,8 @@ export default function SchoolsSubscriptions() {
       case "suspended":
         return (
           <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30 gap-1.5 font-medium px-2.5 py-0.5">
-            <XCircle className="size-3.5" />
-            Suspended
+            <PowerOff className="size-3.5" />
+            Inactive
           </Badge>
         )
       default:
@@ -290,7 +333,7 @@ export default function SchoolsSubscriptions() {
       </div>
 
       {/* Live Metric Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Pending Approvals Card */}
         <Card
           className={`border-2 transition-all cursor-pointer ${
@@ -303,18 +346,18 @@ export default function SchoolsSubscriptions() {
             setCurrentPage(1)
           }}
         >
-          <CardContent className="p-5 flex items-center justify-between">
+          <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Pending Approvals
               </p>
-              <h3 className="text-3xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">
+              <h3 className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">
                 {counts.pending}
               </h3>
-              <p className="text-xs text-muted-foreground mt-1">Awaiting Super Admin review</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Awaiting review</p>
             </div>
-            <div className="size-12 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <Clock className="size-6" />
+            <div className="size-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <Clock className="size-5" />
             </div>
           </CardContent>
         </Card>
@@ -331,46 +374,74 @@ export default function SchoolsSubscriptions() {
             setCurrentPage(1)
           }}
         >
-          <CardContent className="p-5 flex items-center justify-between">
+          <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Active Subscriptions
+                Active
               </p>
-              <h3 className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">
+              <h3 className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">
                 {counts.active}
               </h3>
-              <p className="text-xs text-muted-foreground mt-1">Fully active institutional tiers</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Fully operational</p>
             </div>
-            <div className="size-12 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="size-6" />
+            <div className="size-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="size-5" />
             </div>
           </CardContent>
         </Card>
 
-        {/* Expired / Suspended Card */}
+        {/* Inactive Subscriptions Card */}
+        <Card
+          className={`border-2 transition-all cursor-pointer ${
+            selectedStatusTab === "suspended"
+              ? "border-rose-500 bg-rose-500/5 shadow-sm"
+              : "border-border hover:border-rose-500/50"
+          }`}
+          onClick={() => {
+            setSelectedStatusTab("suspended")
+            setCurrentPage(1)
+          }}
+        >
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Inactive
+              </p>
+              <h3 className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">
+                {counts.suspended}
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Access suspended</p>
+            </div>
+            <div className="size-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+              <PowerOff className="size-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Expired Card */}
         <Card
           className={`border-2 transition-all cursor-pointer ${
             selectedStatusTab === "expired"
-              ? "border-rose-500 bg-rose-500/5 shadow-sm"
-              : "border-border hover:border-rose-500/50"
+              ? "border-gray-500 bg-gray-500/5 shadow-sm"
+              : "border-border hover:border-gray-500/50"
           }`}
           onClick={() => {
             setSelectedStatusTab("expired")
             setCurrentPage(1)
           }}
         >
-          <CardContent className="p-5 flex items-center justify-between">
+          <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Expired Plans
+                Expired
               </p>
-              <h3 className="text-3xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">
+              <h3 className="text-2xl font-extrabold text-gray-700 dark:text-gray-300 mt-1">
                 {counts.expired}
               </h3>
-              <p className="text-xs text-muted-foreground mt-1">Renewal required</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Renewal required</p>
             </div>
-            <div className="size-12 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-              <AlertCircle className="size-6" />
+            <div className="size-10 rounded-xl bg-gray-500/10 text-gray-600 dark:text-gray-400 flex items-center justify-center shrink-0">
+              <AlertCircle className="size-5" />
             </div>
           </CardContent>
         </Card>
@@ -387,18 +458,18 @@ export default function SchoolsSubscriptions() {
             setCurrentPage(1)
           }}
         >
-          <CardContent className="p-5 flex items-center justify-between">
+          <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                All Subscriptions
+                All
               </p>
-              <h3 className="text-3xl font-extrabold text-foreground mt-1">
+              <h3 className="text-2xl font-extrabold text-foreground mt-1">
                 {counts.total}
               </h3>
-              <p className="text-xs text-muted-foreground mt-1">Total school subscriptions recorded</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Total recorded</p>
             </div>
-            <div className="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <Layers className="size-6" />
+            <div className="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Layers className="size-5" />
             </div>
           </CardContent>
         </Card>
@@ -455,18 +526,19 @@ export default function SchoolsSubscriptions() {
           <button
             type="button"
             onClick={() => {
-              setSelectedStatusTab("all")
+              setSelectedStatusTab("suspended")
               setCurrentPage(1)
             }}
             className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
-              selectedStatusTab === "all"
-                ? "bg-background text-foreground shadow-sm border"
+              selectedStatusTab === "suspended"
+                ? "bg-background text-rose-700 dark:text-rose-400 shadow-sm border"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            All Subscriptions
+            <PowerOff className="size-3.5 text-rose-500" />
+            Inactive
             <span className="px-1.5 py-0.2 rounded-full text-[11px] bg-muted text-muted-foreground">
-              {counts.total}
+              {counts.suspended}
             </span>
           </button>
 
@@ -478,13 +550,33 @@ export default function SchoolsSubscriptions() {
             }}
             className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
               selectedStatusTab === "expired"
-                ? "bg-background text-rose-700 dark:text-rose-400 shadow-sm border"
+                ? "bg-background text-gray-700 dark:text-gray-300 shadow-sm border"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
+            <AlertCircle className="size-3.5 text-gray-500" />
             Expired
             <span className="px-1.5 py-0.2 rounded-full text-[11px] bg-muted text-muted-foreground">
               {counts.expired}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedStatusTab("all")
+              setCurrentPage(1)
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+              selectedStatusTab === "all"
+                ? "bg-background text-foreground shadow-sm border"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Layers className="size-3.5 text-primary" />
+            All Subscriptions
+            <span className="px-1.5 py-0.2 rounded-full text-[11px] bg-muted text-muted-foreground">
+              {counts.total}
             </span>
           </button>
         </div>
@@ -552,6 +644,8 @@ export default function SchoolsSubscriptions() {
               ) : (
                 subscriptions.map((sub) => {
                   const isPending = sub.status === "pending"
+                  const isActive = sub.status === "active"
+                  const isSuspended = sub.status === "suspended"
                   return (
                     <tr
                       key={sub.id}
@@ -660,6 +754,31 @@ export default function SchoolsSubscriptions() {
                                 Reject
                               </Button>
                             </>
+                          )}
+
+                          {isActive && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenToggleStatus(sub, "suspended")}
+                              className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/30 text-xs h-8 px-2.5 gap-1.5 cursor-pointer font-medium"
+                              title="Make Inactive"
+                            >
+                              <PowerOff className="size-3.5" />
+                              Make Inactive
+                            </Button>
+                          )}
+
+                          {isSuspended && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleOpenToggleStatus(sub, "active")}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8 px-2.5 gap-1.5 shadow-sm cursor-pointer"
+                              title="Make Active"
+                            >
+                              <Power className="size-3.5" />
+                              Make Active
+                            </Button>
                           )}
 
                           <Link to={`/subscriptions/${sub.id}`}>
@@ -885,6 +1004,115 @@ export default function SchoolsSubscriptions() {
               className="gap-1.5 cursor-pointer"
             >
               {isRejecting ? "Rejecting..." : "Confirm Rejection"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Active <-> Inactive Status Toggle Dialog */}
+      <Dialog open={isStatusModalOpen} onOpenChange={setIsStatusModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle
+              className={`flex items-center gap-2 ${
+                targetStatus === "active"
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-rose-600 dark:text-rose-400"
+              }`}
+            >
+              {targetStatus === "active" ? (
+                <Power className="size-5" />
+              ) : (
+                <PowerOff className="size-5" />
+              )}
+              {targetStatus === "active"
+                ? "Activate School Subscription"
+                : "Deactivate Subscription (Mark Inactive)"}
+            </DialogTitle>
+            <DialogDescription>
+              {targetStatus === "active"
+                ? "Activating this subscription will restore full institutional access for the school."
+                : "Deactivating this subscription will suspend module access for the school until reactivated."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedSubForStatusChange && (
+            <div className="space-y-4 py-2 text-sm">
+              <div className="p-3 rounded-lg bg-muted/60 border space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">School:</span>
+                  <span className="font-semibold text-foreground">
+                    {selectedSubForStatusChange.school_name} ({selectedSubForStatusChange.school_code})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Plan:</span>
+                  <span className="font-medium text-foreground">
+                    {selectedSubForStatusChange.plan_name} ({selectedSubForStatusChange.billing_cycle})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Current Status:</span>
+                  <div>{renderStatusBadge(selectedSubForStatusChange.status)}</div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="status_notes" className="text-xs font-semibold">
+                  Reason / Notes <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
+                <textarea
+                  id="status_notes"
+                  rows={2}
+                  value={statusChangeNotes}
+                  onChange={(e) => setStatusChangeNotes(e.target.value)}
+                  placeholder={
+                    targetStatus === "suspended"
+                      ? "e.g. Payment overdue, Administrative review, Requested by school"
+                      : "e.g. Payment cleared, Subscription restored"
+                  }
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsStatusModalOpen(false)}
+              disabled={isSubmittingStatus}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleConfirmStatusChange}
+              disabled={isSubmittingStatus}
+              className={`gap-1.5 cursor-pointer text-white font-semibold ${
+                targetStatus === "active"
+                  ? "bg-emerald-600 hover:bg-emerald-700"
+                  : "bg-rose-600 hover:bg-rose-700"
+              }`}
+            >
+              {isSubmittingStatus ? (
+                <>
+                  <RefreshCw className="size-3.5 animate-spin" />
+                  Updating...
+                </>
+              ) : targetStatus === "active" ? (
+                <>
+                  <Power className="size-4" />
+                  Confirm & Make Active
+                </>
+              ) : (
+                <>
+                  <PowerOff className="size-4" />
+                  Confirm & Make Inactive
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

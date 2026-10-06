@@ -5,6 +5,7 @@ import {
   fetchSubscriptionByIdApi,
   approveSubscriptionApi,
   rejectSubscriptionApi,
+  updateSubscriptionStatusApi,
 } from "@/services/subscriptionService"
 import type { SchoolSubscription } from "@/types/subscription"
 import { Button } from "@/components/ui/button"
@@ -41,6 +42,8 @@ import {
   Mail,
   Phone,
   MapPin,
+  Power,
+  PowerOff,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -108,6 +111,12 @@ export default function SubscriptionDetails() {
   const [isRejectOpen, setIsRejectOpen] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
   const [rejectionReason, setRejectionReason] = useState("")
+
+  // Status toggle (Active <-> Inactive) modal states
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const [targetStatus, setTargetStatus] = useState<"active" | "suspended">("suspended")
+  const [statusChangeNotes, setStatusChangeNotes] = useState("")
 
   const loadSubscription = useCallback(
     async (showLoading = true) => {
@@ -218,6 +227,35 @@ export default function SubscriptionDetails() {
     }
   }
 
+  // Open Status Toggle Modal (Active <-> Inactive)
+  const handleOpenStatusModal = (status: "active" | "suspended") => {
+    setTargetStatus(status)
+    setStatusChangeNotes("")
+    setIsStatusModalOpen(true)
+  }
+
+  // Submit Status Change (Active <-> Inactive)
+  const handleConfirmStatusChange = async () => {
+    if (!token || !subscription) return
+    try {
+      setIsUpdatingStatus(true)
+      await updateSubscriptionStatusApi(token, subscription.id, {
+        status: targetStatus,
+        notes: statusChangeNotes.trim() || undefined,
+      })
+
+      const actionName = targetStatus === "active" ? "activated" : "marked inactive"
+      toast.success(`Subscription has been ${actionName} successfully.`)
+      setIsStatusModalOpen(false)
+      loadSubscription(false)
+    } catch (err: any) {
+      console.error("Status update error:", err)
+      toast.error(err?.message || "Failed to update subscription status.")
+    } finally {
+      setIsUpdatingStatus(false)
+    }
+  }
+
   // Badge helpers
   const renderStatusBadge = (status: string) => {
     switch (status) {
@@ -252,8 +290,8 @@ export default function SubscriptionDetails() {
       case "suspended":
         return (
           <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30 gap-1.5 font-medium px-3 py-1 text-xs">
-            <XCircle className="size-3.5" />
-            Suspended / Rejected
+            <PowerOff className="size-3.5" />
+            Inactive
           </Badge>
         )
       default:
@@ -432,6 +470,29 @@ export default function SubscriptionDetails() {
                 Reject Request
               </Button>
             </>
+          )}
+
+          {subscription.status === "active" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleOpenStatusModal("suspended")}
+              className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/30 font-medium h-9 px-3.5 gap-1.5 cursor-pointer"
+            >
+              <PowerOff className="size-4" />
+              Make Inactive
+            </Button>
+          )}
+
+          {subscription.status === "suspended" && (
+            <Button
+              size="sm"
+              onClick={() => handleOpenStatusModal("active")}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold h-9 px-3.5 gap-1.5 shadow-sm cursor-pointer"
+            >
+              <Power className="size-4" />
+              Make Active
+            </Button>
           )}
         </div>
       </div>
@@ -1019,6 +1080,115 @@ export default function SubscriptionDetails() {
               className="gap-1.5 cursor-pointer"
             >
               {isRejecting ? "Rejecting..." : "Confirm Rejection"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Active <-> Inactive Status Toggle Dialog */}
+      <Dialog open={isStatusModalOpen} onOpenChange={setIsStatusModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle
+              className={`flex items-center gap-2 ${
+                targetStatus === "active"
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-rose-600 dark:text-rose-400"
+              }`}
+            >
+              {targetStatus === "active" ? (
+                <Power className="size-5" />
+              ) : (
+                <PowerOff className="size-5" />
+              )}
+              {targetStatus === "active"
+                ? "Activate School Subscription"
+                : "Deactivate Subscription (Mark Inactive)"}
+            </DialogTitle>
+            <DialogDescription>
+              {targetStatus === "active"
+                ? "Activating this subscription will restore full institutional access for the school."
+                : "Deactivating this subscription will suspend module access for the school until reactivated."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {subscription && (
+            <div className="space-y-4 py-2 text-sm">
+              <div className="p-3 rounded-lg bg-muted/60 border space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">School:</span>
+                  <span className="font-semibold text-foreground">
+                    {subscription.school_name} ({subscription.school_code})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Plan:</span>
+                  <span className="font-medium text-foreground">
+                    {subscription.plan_name} ({subscription.billing_cycle})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Current Status:</span>
+                  <div>{renderStatusBadge(subscription.status)}</div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="details_status_notes" className="text-xs font-semibold">
+                  Reason / Notes <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
+                <textarea
+                  id="details_status_notes"
+                  rows={2}
+                  value={statusChangeNotes}
+                  onChange={(e) => setStatusChangeNotes(e.target.value)}
+                  placeholder={
+                    targetStatus === "suspended"
+                      ? "e.g. Payment overdue, Administrative review, Requested by school"
+                      : "e.g. Payment cleared, Subscription restored"
+                  }
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsStatusModalOpen(false)}
+              disabled={isUpdatingStatus}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleConfirmStatusChange}
+              disabled={isUpdatingStatus}
+              className={`gap-1.5 cursor-pointer text-white font-semibold ${
+                targetStatus === "active"
+                  ? "bg-emerald-600 hover:bg-emerald-700"
+                  : "bg-rose-600 hover:bg-rose-700"
+              }`}
+            >
+              {isUpdatingStatus ? (
+                <>
+                  <RefreshCw className="size-3.5 animate-spin" />
+                  Updating...
+                </>
+              ) : targetStatus === "active" ? (
+                <>
+                  <Power className="size-4" />
+                  Confirm & Make Active
+                </>
+              ) : (
+                <>
+                  <PowerOff className="size-4" />
+                  Confirm & Make Inactive
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
