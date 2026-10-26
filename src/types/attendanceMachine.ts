@@ -1,3 +1,5 @@
+import type { CatalogCounts, PaginationMeta, PaginationParams } from "@/types/pagination"
+
 export type MachineType = 'biometric' | 'facial' | 'rfid' | 'hybrid' | string
 
 export interface AttendanceMachine {
@@ -24,6 +26,16 @@ export interface AttendanceMachineFilterParams {
   status?: string | number
   machine_type?: string
   brand?: string
+}
+
+/** Filters + server-side pagination params for the paginated list endpoint. */
+export interface AttendanceMachineListParams extends AttendanceMachineFilterParams, PaginationParams {}
+
+/** Paginated response shape of GET /attendance-machines. */
+export interface AttendanceMachineListResult {
+  machines: AttendanceMachine[]
+  pagination: PaginationMeta
+  counts: CatalogCounts
 }
 
 export interface CreateAttendanceMachinePayload {

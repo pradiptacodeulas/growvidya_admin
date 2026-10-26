@@ -1,10 +1,12 @@
 import { API_BASE_URL, SERVER_BASE_URL } from "@/config/api"
 import type {
   AttendanceMachine,
-  AttendanceMachineFilterParams,
+  AttendanceMachineListParams,
+  AttendanceMachineListResult,
   CreateAttendanceMachinePayload,
   UpdateAttendanceMachinePayload,
 } from "@/types/attendanceMachine"
+import { EMPTY_COUNTS, EMPTY_PAGINATION } from "@/types/pagination"
 
 function getAuthHeaders(token?: string | null, isJson = true): Record<string, string> {
   const headers: Record<string, string> = {}
@@ -44,12 +46,26 @@ async function handleResponse<T>(res: Response, fallbackMessage: string): Promis
 }
 
 /**
- * Fetch all attendance machines from API
+ * Normalize the list payload into the paginated shape.
+ */
+function normalizeMachineList(
+  data: AttendanceMachineListResult | null | undefined
+): AttendanceMachineListResult {
+  return {
+    machines: Array.isArray(data?.machines) ? data.machines : [],
+    pagination: data?.pagination ?? EMPTY_PAGINATION,
+    counts: data?.counts ?? EMPTY_COUNTS,
+  }
+}
+
+/**
+ * Fetch a paginated page of attendance machines from API.
+ * Returns `{ machines, pagination, counts }` where `counts` are global (unfiltered) totals.
  */
 export async function fetchAttendanceMachinesApi(
   token: string,
-  params?: AttendanceMachineFilterParams
-): Promise<AttendanceMachine[]> {
+  params?: AttendanceMachineListParams
+): Promise<AttendanceMachineListResult> {
   const query = new URLSearchParams()
   if (params?.search && params.search.trim()) {
     query.set("search", params.search.trim())
@@ -63,6 +79,12 @@ export async function fetchAttendanceMachinesApi(
   if (params?.brand && params.brand !== "all") {
     query.set("brand", params.brand)
   }
+  if (params?.page !== undefined) {
+    query.set("page", String(params.page))
+  }
+  if (params?.limit !== undefined) {
+    query.set("limit", String(params.limit))
+  }
 
   const queryString = query.toString() ? `?${query.toString()}` : ""
 
@@ -71,7 +93,9 @@ export async function fetchAttendanceMachinesApi(
       method: "GET",
       headers: getAuthHeaders(token),
     })
-    return await handleResponse<AttendanceMachine[]>(res, "Failed to retrieve attendance machines.")
+    return normalizeMachineList(
+      await handleResponse<AttendanceMachineListResult>(res, "Failed to retrieve attendance machines.")
+    )
   } catch (err: unknown) {
     const status = (err as { status?: number })?.status
     if (status === 404 || status === 403) {
@@ -79,7 +103,9 @@ export async function fetchAttendanceMachinesApi(
         method: "GET",
         headers: getAuthHeaders(token),
       })
-      return await handleResponse<AttendanceMachine[]>(fallbackRes, "Failed to retrieve attendance machines.")
+      return normalizeMachineList(
+        await handleResponse<AttendanceMachineListResult>(fallbackRes, "Failed to retrieve attendance machines.")
+      )
     }
     throw err
   }

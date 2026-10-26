@@ -1,7 +1,9 @@
 import { API_BASE_URL, SERVER_BASE_URL } from "@/config/api"
+import { EMPTY_COUNTS, EMPTY_PAGINATION, type PaginationParams } from "@/types/pagination"
 import type {
   RfidCard,
   RfidCardFilterParams,
+  RfidCardListResult,
   CreateRfidCardPayload,
   UpdateRfidCardPayload,
 } from "@/types/rfidCard"
@@ -44,12 +46,38 @@ async function handleResponse<T>(res: Response, fallbackMessage: string): Promis
 }
 
 /**
- * Fetch all RFID cards from API
+ * Normalizes the GET /rfid-cards payload into the paginated list shape.
+ * Tolerates a legacy plain-array payload by treating it as a single page.
+ */
+function normalizeRfidCardList(
+  data: RfidCardListResult | RfidCard[] | null | undefined
+): RfidCardListResult {
+  if (Array.isArray(data)) {
+    const active = data.filter((c) => Number(c.status) === 1).length
+    return {
+      cards: data,
+      pagination: {
+        ...EMPTY_PAGINATION,
+        total: data.length,
+        limit: Math.max(data.length, EMPTY_PAGINATION.limit),
+      },
+      counts: { total: data.length, active, inactive: data.length - active },
+    }
+  }
+  return {
+    cards: Array.isArray(data?.cards) ? data.cards : [],
+    pagination: { ...EMPTY_PAGINATION, ...(data?.pagination ?? {}) },
+    counts: { ...EMPTY_COUNTS, ...(data?.counts ?? {}) },
+  }
+}
+
+/**
+ * Fetch a page of RFID cards from API (server-side filtering + pagination)
  */
 export async function fetchRfidCardsApi(
   token: string,
-  params?: RfidCardFilterParams
-): Promise<RfidCard[]> {
+  params?: RfidCardFilterParams & PaginationParams
+): Promise<RfidCardListResult> {
   const query = new URLSearchParams()
   if (params?.search && params.search.trim()) {
     query.set("search", params.search.trim())
@@ -61,6 +89,13 @@ export async function fetchRfidCardsApi(
     query.set("card_type", params.card_type)
   }
 
+  if (params?.page !== undefined && params.page > 0) {
+    query.set("page", String(params.page))
+  }
+  if (params?.limit !== undefined && params.limit > 0) {
+    query.set("limit", String(params.limit))
+  }
+
   const queryString = query.toString() ? `?${query.toString()}` : ""
 
   try {
@@ -68,7 +103,8 @@ export async function fetchRfidCardsApi(
       method: "GET",
       headers: getAuthHeaders(token),
     })
-    return await handleResponse<RfidCard[]>(res, "Failed to retrieve RFID cards.")
+    const data = await handleResponse<RfidCardListResult | RfidCard[]>(res, "Failed to retrieve RFID cards.")
+    return normalizeRfidCardList(data)
   } catch (err: unknown) {
     const status = (err as { status?: number })?.status
     if (status === 404 || status === 403) {
@@ -76,7 +112,11 @@ export async function fetchRfidCardsApi(
         method: "GET",
         headers: getAuthHeaders(token),
       })
-      return await handleResponse<RfidCard[]>(fallbackRes, "Failed to retrieve RFID cards.")
+      const fallbackData = await handleResponse<RfidCardListResult | RfidCard[]>(
+        fallbackRes,
+        "Failed to retrieve RFID cards."
+      )
+      return normalizeRfidCardList(fallbackData)
     }
     throw err
   }

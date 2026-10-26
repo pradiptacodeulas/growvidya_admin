@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router"
 import { useAppSelector } from "@/store/store"
 import { usePermission } from "@/hooks/usePermission"
@@ -8,6 +8,14 @@ import {
   deleteAttendanceMachineApi,
 } from "@/services/attendanceMachineService"
 import type { AttendanceMachine } from "@/types/attendanceMachine"
+import {
+  DEFAULT_PAGE_SIZE,
+  EMPTY_COUNTS,
+  EMPTY_PAGINATION,
+  type CatalogCounts,
+  type PaginationMeta,
+} from "@/types/pagination"
+import { DataPagination } from "@/components/DataPagination"
 import { getFullImageUrl } from "@/config/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,13 +39,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Cpu,
   Plus,
   Pencil,
@@ -57,18 +58,6 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-const STATUS_FILTER_OPTIONS = [
-  { value: "all", label: "All Statuses" },
-  { value: "active", label: "Active Only" },
-  { value: "inactive", label: "Inactive Only" },
-]
-
-const STATUS_FILTER_LABELS: Record<string, string> = {
-  all: "All Statuses",
-  active: "Active Only",
-  inactive: "Inactive Only",
-}
-
 export default function AttendanceMachines() {
   const navigate = useNavigate()
   const token = useAppSelector((state) => state.auth.token)
@@ -83,29 +72,38 @@ export default function AttendanceMachines() {
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid")
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table")
+
+  // Server-side pagination
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [pagination, setPagination] = useState<PaginationMeta>(EMPTY_PAGINATION)
+  const [counts, setCounts] = useState<CatalogCounts>(EMPTY_COUNTS)
+  // Guards against out-of-order responses when filters/page change quickly
+  const requestIdRef = useRef(0)
 
   // Status toggle in-progress ID
   const [togglingId, setTogglingId] = useState<number | null>(null)
-
-
 
   // Delete Modal
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [selectedMachine, setSelectedMachine] = useState<AttendanceMachine | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Debounce search
+  // Debounce search (reset to first page when the search term changes)
   useEffect(() => {
+    if (searchQuery === debouncedSearch) return
     const handler = setTimeout(() => {
       setDebouncedSearch(searchQuery)
+      setPage(1)
     }, 300)
     return () => clearTimeout(handler)
-  }, [searchQuery])
+  }, [searchQuery, debouncedSearch])
 
   // Fetch machines (NO mock / fallback data)
   const loadMachines = async (showLoadingState = true) => {
     if (!token) return
+    const requestId = ++requestIdRef.current
     if (showLoadingState) setIsLoading(true)
     else setIsRefreshing(true)
 
@@ -113,22 +111,58 @@ export default function AttendanceMachines() {
       const data = await fetchAttendanceMachinesApi(token, {
         search: debouncedSearch,
         status: statusFilter === "all" ? undefined : statusFilter === "active" ? 1 : 0,
+        page,
+        limit: pageSize,
       })
-      setMachines(data)
+      if (requestId !== requestIdRef.current) return
+      setMachines(data.machines)
+      setPagination(data.pagination)
+      setCounts(data.counts)
+      // Current page no longer exists (e.g. rows removed elsewhere) — jump to the last valid page
+      if (data.pagination.total > 0 && page > data.pagination.totalPages) {
+        setPage(data.pagination.totalPages)
+      }
     } catch (err: unknown) {
+      if (requestId !== requestIdRef.current) return
       const message = err instanceof Error ? err.message : "Failed to load attendance machines."
       toast.error(message)
     } finally {
-      setIsLoading(false)
-      setIsRefreshing(false)
+      if (requestId === requestIdRef.current) {
+        setIsLoading(false)
+        setIsRefreshing(false)
+      }
     }
   }
 
   useEffect(() => {
     loadMachines(true)
-  }, [token, debouncedSearch, statusFilter])
+  }, [token, debouncedSearch, statusFilter, page, pageSize])
 
+  const handlePageChange = (nextPage: number) => {
+    if (nextPage === page) return
+    setPage(nextPage)
+  }
 
+  const handlePageSizeChange = (nextSize: number) => {
+    if (nextSize === pageSize) return
+    setPageSize(nextSize)
+    setPage(1)
+  }
+
+  const handleStatusChange = (val: "all" | "active" | "inactive") => {
+    if (val === statusFilter) return
+    setStatusFilter(val)
+    setPage(1)
+  }
+
+  const handleResetFilters = () => {
+    setSearchQuery("")
+    setDebouncedSearch("")
+    setStatusFilter("all")
+    setPage(1)
+  }
+
+  const hasActiveFilters = Boolean(searchQuery) || statusFilter !== "all"
 
   // Toggle status
   const handleToggleStatus = async (machine: AttendanceMachine) => {
@@ -144,6 +178,8 @@ export default function AttendanceMachines() {
       toast.success(
         `Machine "${machine.machine_name}" marked as ${newStatus === 1 ? "Active" : "Inactive"}.`
       )
+      // Refresh the current page so the summary counts stay accurate
+      loadMachines(false)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to update machine status."
       toast.error(message)
@@ -158,10 +194,15 @@ export default function AttendanceMachines() {
     setIsDeleting(true)
     try {
       await deleteAttendanceMachineApi(token, selectedMachine.id)
-      setMachines((prev) => prev.filter((m) => m.id !== selectedMachine.id))
       toast.success(`Machine "${selectedMachine.machine_name}" deleted successfully.`)
       setIsDeleteOpen(false)
       setSelectedMachine(null)
+      if (machines.length === 1 && page > 1) {
+        // Removed the last row on this page — step back one page (effect reloads)
+        setPage(page - 1)
+      } else {
+        loadMachines(false)
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to delete machine."
       toast.error(message)
@@ -170,17 +211,17 @@ export default function AttendanceMachines() {
     }
   }
 
-  // Summary counts
-  const totalCount = machines.length
-  const activeCount = machines.filter((m) => m.status === 1).length
-  const inactiveCount = machines.filter((m) => m.status === 0).length
+  // Summary counts (global catalog totals from the server, unaffected by filters/paging)
+  const totalCount = counts.total
+  const activeCount = counts.active
+  const inactiveCount = counts.inactive
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <Cpu className="size-6 text-primary" />
             Attendance Machines
           </h1>
@@ -195,20 +236,20 @@ export default function AttendanceMachines() {
             size="sm"
             onClick={() => loadMachines(false)}
             disabled={isRefreshing || isLoading}
-            className="gap-2 cursor-pointer"
+            className="gap-2 h-9 text-xs font-semibold cursor-pointer"
           >
-            <RefreshCw className={`size-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            Refresh
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing || isLoading ? "animate-spin" : ""}`} />
+            {isRefreshing || isLoading ? "Refreshing..." : "Refresh"}
           </Button>
 
           {canAddMachine && (
             <Button
               onClick={() => navigate("/attendance-machines/create")}
               size="sm"
-              className="gap-1.5 cursor-pointer shadow-xs"
+              className="gap-1.5 h-9 text-xs font-semibold cursor-pointer shadow-sm"
             >
-              <Plus className="size-4" />
-              Add Machine
+              <Plus className="h-4 w-4" />
+              <span>Add Machine</span>
             </Button>
           )}
         </div>
@@ -216,59 +257,53 @@ export default function AttendanceMachines() {
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="shadow-xs border-border/60">
+        <Card className="border-border/70 shadow-sm">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Total Devices
-              </p>
-              <p className="text-2xl font-bold tracking-tight text-foreground">
-                {isLoading ? <Skeleton className="h-8 w-14" /> : totalCount}
-              </p>
+              <span className="text-xs font-medium text-muted-foreground">Total Devices</span>
+              <div className="text-2xl font-bold tracking-tight text-foreground">
+                {isLoading ? <Skeleton className="h-7 w-12" /> : totalCount}
+              </div>
             </div>
-            <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
-              <Cpu className="size-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Cpu className="h-5 w-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-xs border-border/60">
+        <Card className="border-border/70 shadow-sm">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Active Devices
-              </p>
-              <p className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
-                {isLoading ? <Skeleton className="h-8 w-14" /> : activeCount}
-              </p>
+              <span className="text-xs font-medium text-muted-foreground">Active Devices</span>
+              <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+                {isLoading ? <Skeleton className="h-7 w-12" /> : activeCount}
+              </div>
             </div>
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="size-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-5 w-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-xs border-border/60">
+        <Card className="border-border/70 shadow-sm">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Inactive
-              </p>
-              <p className="text-2xl font-bold tracking-tight text-muted-foreground">
-                {isLoading ? <Skeleton className="h-8 w-14" /> : inactiveCount}
-              </p>
+              <span className="text-xs font-medium text-muted-foreground">Inactive Devices</span>
+              <div className="text-2xl font-bold tracking-tight text-muted-foreground">
+                {isLoading ? <Skeleton className="h-7 w-12" /> : inactiveCount}
+              </div>
             </div>
-            <div className="p-2.5 rounded-xl bg-muted text-muted-foreground">
-              <XCircle className="size-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+              <XCircle className="h-5 w-5" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-card p-3 rounded-xl border border-border/60 shadow-xs">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+      {/* Search and Filters Bar */}
+      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search by machine name, model, brand, connectivity..."
             value={searchQuery}
@@ -277,307 +312,173 @@ export default function AttendanceMachines() {
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded cursor-pointer"
+              title="Clear search"
             >
-              <X className="size-3.5" />
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Status Dropdown using Shadcn UI Select */}
-          <div className="w-40">
-            <Select
-              value={statusFilter}
-              onValueChange={(val) => {
-                if (val) setStatusFilter(val as "all" | "active" | "inactive")
-              }}
-              items={STATUS_FILTER_OPTIONS}
-              itemToStringLabel={(val) => STATUS_FILTER_LABELS[String(val)] || String(val || "")}
-            >
-              <SelectTrigger className="h-9 text-xs w-full">
-                <SelectValue placeholder="Filter Status" />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_FILTER_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value} label={opt.label}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* View Mode Toggle */}
-          <div className="inline-flex rounded-lg border border-border/60 bg-muted/30 p-1">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Status Filter */}
+          <div className="flex items-center rounded-lg border border-border/60 p-0.5 bg-muted/30 text-xs">
             <button
-              onClick={() => setViewMode("grid")}
-              title="Grid View"
-              className={`p-1.5 rounded-md transition-all cursor-pointer ${
-                viewMode === "grid"
-                  ? "bg-background text-foreground shadow-xs"
+              type="button"
+              onClick={() => handleStatusChange("all")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                statusFilter === "all"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <LayoutGrid className="size-4" />
+              All Status
             </button>
             <button
+              type="button"
+              onClick={() => handleStatusChange("active")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                statusFilter === "active"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Active
+            </button>
+            <button
+              type="button"
+              onClick={() => handleStatusChange("inactive")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                statusFilter === "inactive"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Inactive
+            </button>
+          </div>
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center rounded-lg border border-border/60 p-0.5 bg-muted/30 text-xs">
+            <button
+              type="button"
               onClick={() => setViewMode("table")}
               title="Table View"
-              className={`p-1.5 rounded-md transition-all cursor-pointer ${
+              className={`p-1.5 rounded-md transition-colors cursor-pointer ${
                 viewMode === "table"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <List className="size-4" />
+              <List className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              title="Grid View"
+              className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                viewMode === "grid"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="overflow-hidden border-border/60">
-              <Skeleton className="h-44 w-full" />
-              <div className="p-4 space-y-3">
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-                <Skeleton className="h-8 w-full mt-4" />
-              </div>
-            </Card>
-          ))}
-        </div>
-      ) : machines.length === 0 ? (
-        <Card className="border-dashed border-2 p-12 text-center">
-          <div className="flex flex-col items-center justify-center max-w-md mx-auto space-y-3">
-            <div className="p-3 rounded-full bg-muted text-muted-foreground">
-              <Cpu className="size-8" />
-            </div>
-            <h3 className="text-base font-semibold text-foreground">
-              No Attendance Machines Found
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              {searchQuery || statusFilter !== "all"
-                ? "No machines match the selected filter criteria."
-                : "No attendance machines have been registered in the system yet."}
-            </p>
-            {canAddMachine && (
-              <Button
-                onClick={() => navigate("/attendance-machines/create")}
-                size="sm"
-                className="mt-2 gap-1.5 cursor-pointer"
-              >
-                <Plus className="size-4" />
-                Add First Machine
-              </Button>
-            )}
-          </div>
-        </Card>
-      ) : viewMode === "grid" ? (
-        /* Grid View */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {machines.map((machine) => {
-            const imageUrl = getFullImageUrl(machine.machine_image)
-            const isToggling = togglingId === machine.id
-
-            return (
-              <Card
-                key={machine.id}
-                className="overflow-hidden border-border/60 hover:border-primary/40 hover:shadow-md transition-all group flex flex-col justify-between"
-              >
-                <div>
-                  {/* Image / Header Banner */}
-                  <div className="relative h-44 bg-muted/40 overflow-hidden flex items-center justify-center border-b border-border/60">
-                    {imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt={machine.machine_name}
-                        className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-300"
-                        onError={(e) => {
-                          ;(e.target as HTMLElement).style.display = "none"
-                        }}
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
-                        <Cpu className="size-10 stroke-1 text-muted-foreground/60" />
-                        <span className="text-xs">No preview image</span>
+      {/* Main Content Area: DataTable or Grid View */}
+      {viewMode === "table" ? (
+        <Card className="border-border/70 shadow-sm overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableHead className="w-[72px]">Image</TableHead>
+                <TableHead className="w-[240px]">Machine Name & Model</TableHead>
+                <TableHead>Brand & Type</TableHead>
+                <TableHead>Capacities & Connectivity</TableHead>
+                <TableHead>Price</TableHead>
+                <TableHead className="text-right">Status / Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>
+                      <Skeleton className="h-11 w-11 rounded-lg" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-36 mb-1" />
+                      <Skeleton className="h-3 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24 mb-1" />
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-28 mb-1" />
+                      <Skeleton className="h-3 w-20" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-20" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Skeleton className="h-6 w-24 ml-auto" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : machines.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-48 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
+                        <Cpu className="h-6 w-6" />
                       </div>
-                    )}
-
-                    {/* Status Badge */}
-                    <div className="absolute top-3 right-3">
-                      <Badge
-                        variant="secondary"
-                        className={`text-xs font-semibold px-2 py-0.5 shadow-xs ${
-                          machine.status === 1
-                            ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 dark:text-emerald-400"
-                            : "bg-muted text-muted-foreground border border-border"
-                        }`}
-                      >
-                        {machine.status === 1 ? "Active" : "Inactive"}
-                      </Badge>
-                    </div>
-
-                    {/* Type Badge */}
-                    <div className="absolute bottom-3 left-3">
-                      <Badge
-                        variant="outline"
-                        className="text-[11px] font-medium bg-background/90 backdrop-blur-xs uppercase tracking-wider"
-                      >
-                        {machine.machine_type}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {/* Card Details */}
-                  <div className="p-4 space-y-3">
-                    <div>
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-xs font-medium text-primary uppercase tracking-wider">
-                          {machine.brand || "—"}
-                        </span>
-                        <span className="text-xs font-mono text-muted-foreground">
-                          {machine.model_number}
-                        </span>
-                      </div>
-                      <h3
-                        onClick={() => navigate(`/attendance-machines/${machine.id}`)}
-                        className="text-base font-semibold text-foreground line-clamp-1 mt-0.5 cursor-pointer hover:text-primary transition-colors"
-                      >
-                        {machine.machine_name}
-                      </h3>
-                    </div>
-
-                    {machine.specifications && (
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {machine.specifications}
+                      <span className="text-sm font-semibold text-foreground">
+                        No attendance machines found
+                      </span>
+                      <p className="text-xs text-muted-foreground max-w-sm">
+                        {hasActiveFilters
+                          ? "Try adjusting your search query or filters."
+                          : "No attendance machines have been registered in the system yet."}
                       </p>
-                    )}
-
-                    {/* Hardware Specs Pills */}
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50 text-xs">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Users className="size-3.5 text-foreground/70 shrink-0" />
-                        <span className="truncate">
-                          {machine.user_capacity
-                            ? `${Number(machine.user_capacity).toLocaleString()} Users`
-                            : "—"}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Wifi className="size-3.5 text-foreground/70 shrink-0" />
-                        <span className="truncate">{machine.connectivity || "—"}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Layers className="size-3.5 text-foreground/70 shrink-0" />
-                        <span className="truncate">{machine.push_protocol || "—"}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 text-foreground font-semibold">
-                        <span>₹{Number(machine.unit_price || 0).toLocaleString("en-IN")}</span>
-                      </div>
+                      {hasActiveFilters ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleResetFilters}
+                          className="mt-2 text-xs font-semibold cursor-pointer"
+                        >
+                          Reset all filters
+                        </Button>
+                      ) : canAddMachine ? (
+                        <Button
+                          size="sm"
+                          onClick={() => navigate("/attendance-machines/create")}
+                          className="mt-2 text-xs font-semibold gap-1.5 cursor-pointer shadow-sm"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>Add First Machine</span>
+                        </Button>
+                      ) : null}
                     </div>
-                  </div>
-                </div>
-
-                {/* Card Actions Footer */}
-                <div className="p-3 bg-muted/20 border-t border-border/50 flex items-center justify-between gap-1">
-                  <div className="flex items-center gap-1">
-                    {canManageMachine && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleToggleStatus(machine)}
-                        disabled={isToggling}
-                        title={machine.status === 1 ? "Deactivate" : "Activate"}
-                        className={`h-8 px-2 text-xs gap-1.5 cursor-pointer ${
-                          machine.status === 1
-                            ? "text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10"
-                            : "text-emerald-600 hover:bg-emerald-500/10"
-                        }`}
-                      >
-                        <Power className={`size-3.5 ${isToggling ? "animate-spin" : ""}`} />
-                        {machine.status === 1 ? "Deactivate" : "Activate"}
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="View Details"
-                      onClick={() => navigate(`/attendance-machines/${machine.id}`)}
-                      className="size-8 cursor-pointer"
-                    >
-                      <Eye className="size-3.5" />
-                    </Button>
-
-                    {canEditMachine && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Edit"
-                        onClick={() => navigate(`/attendance-machines/${machine.id}/edit`)}
-                        className="size-8 cursor-pointer"
-                      >
-                        <Pencil className="size-3.5" />
-                      </Button>
-                    )}
-
-                    {canDeleteMachine && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Delete"
-                        onClick={() => {
-                          setSelectedMachine(machine)
-                          setIsDeleteOpen(true)
-                        }}
-                        className="size-8 text-destructive hover:bg-destructive/10 cursor-pointer"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            )
-          })}
-        </div>
-      ) : (
-        /* Table View */
-        <Card className="border-border/60 overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  <TableHead className="w-[80px]">Image</TableHead>
-                  <TableHead>Machine Name & Model</TableHead>
-                  <TableHead>Brand & Type</TableHead>
-                  <TableHead>Capacities & Conn</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {machines.map((machine) => {
+              ) : (
+                machines.map((machine) => {
                   const imageUrl = getFullImageUrl(machine.machine_image)
                   const isToggling = togglingId === machine.id
 
                   return (
-                    <TableRow key={machine.id}>
+                    <TableRow key={machine.id} className="group">
                       <TableCell>
                         <div
                           onClick={() => navigate(`/attendance-machines/${machine.id}`)}
-                          className="size-12 rounded-lg bg-muted border border-border/60 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer hover:opacity-85"
+                          className="size-11 rounded-lg bg-muted border border-border/60 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer hover:opacity-85"
                         >
                           {imageUrl ? (
                             <img
@@ -596,12 +497,13 @@ export default function AttendanceMachines() {
 
                       <TableCell>
                         <div className="space-y-0.5">
-                          <p
+                          <button
+                            type="button"
                             onClick={() => navigate(`/attendance-machines/${machine.id}`)}
-                            className="font-semibold text-foreground text-sm cursor-pointer hover:text-primary transition-colors"
+                            className="font-semibold text-foreground text-sm cursor-pointer hover:text-primary transition-colors text-left"
                           >
                             {machine.machine_name}
-                          </p>
+                          </button>
                           <p className="text-xs font-mono text-muted-foreground">
                             {machine.model_number}
                           </p>
@@ -609,7 +511,7 @@ export default function AttendanceMachines() {
                       </TableCell>
 
                       <TableCell>
-                        <div className="space-y-0.5">
+                        <div className="space-y-1">
                           <p className="text-xs font-medium text-foreground">
                             {machine.brand || "—"}
                           </p>
@@ -647,46 +549,48 @@ export default function AttendanceMachines() {
                         </div>
                       </TableCell>
 
-                      <TableCell>
-                        <Badge
-                          variant="secondary"
-                          className={`text-xs font-semibold px-2 py-0.5 ${
-                            machine.status === 1
-                              ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 dark:text-emerald-400"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {machine.status === 1 ? "Active" : "Inactive"}
-                        </Badge>
-                      </TableCell>
-
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {canManageMachine && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title={machine.status === 1 ? "Deactivate" : "Activate"}
-                              onClick={() => handleToggleStatus(machine)}
-                              disabled={isToggling}
-                              className={`size-8 cursor-pointer ${
-                                machine.status === 1
-                                  ? "text-muted-foreground hover:text-amber-600"
-                                  : "text-emerald-600"
-                              }`}
-                            >
-                              <Power className={`size-4 ${isToggling ? "animate-spin" : ""}`} />
-                            </Button>
-                          )}
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => canManageMachine && handleToggleStatus(machine)}
+                            disabled={!canManageMachine || isToggling}
+                            title={
+                              canManageMachine
+                                ? `Click to mark as ${machine.status === 1 ? "Inactive" : "Active"}`
+                                : undefined
+                            }
+                            className={`transition-transform ${
+                              canManageMachine ? "cursor-pointer active:scale-95" : "cursor-default"
+                            } ${isToggling ? "opacity-50 pointer-events-none" : ""}`}
+                          >
+                            {machine.status === 1 ? (
+                              <Badge
+                                variant="default"
+                                className="capitalize gap-1 text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25 border-emerald-500/30"
+                              >
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                Active
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="secondary"
+                                className="capitalize gap-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted"
+                              >
+                                <XCircle className="h-3 w-3" />
+                                Inactive
+                              </Badge>
+                            )}
+                          </button>
 
                           <Button
                             variant="ghost"
                             size="icon"
                             title="View Details"
                             onClick={() => navigate(`/attendance-machines/${machine.id}`)}
-                            className="size-8 cursor-pointer"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
                           >
-                            <Eye className="size-4" />
+                            <Eye className="h-4 w-4" />
                           </Button>
 
                           {canEditMachine && (
@@ -695,9 +599,9 @@ export default function AttendanceMachines() {
                               size="icon"
                               title="Edit"
                               onClick={() => navigate(`/attendance-machines/${machine.id}/edit`)}
-                              className="size-8 cursor-pointer"
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
                             >
-                              <Pencil className="size-4" />
+                              <Pencil className="h-4 w-4" />
                             </Button>
                           )}
 
@@ -710,23 +614,242 @@ export default function AttendanceMachines() {
                                 setSelectedMachine(machine)
                                 setIsDeleteOpen(true)
                               }}
-                              className="size-8 text-destructive hover:bg-destructive/10 cursor-pointer"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
                             >
-                              <Trash2 className="size-4" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           )}
                         </div>
                       </TableCell>
                     </TableRow>
                   )
-                })}
-              </TableBody>
-            </Table>
-          </div>
+                })
+              )}
+            </TableBody>
+          </Table>
+
+          {/* Pagination Controls */}
+          <DataPagination
+            pagination={pagination}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+            isLoading={isLoading || isRefreshing}
+            itemLabel="machines"
+          />
         </Card>
+      ) : (
+        /* Grid View */
+        <div className="space-y-4">
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Card key={i} className="overflow-hidden border-border/60">
+                  <Skeleton className="h-44 w-full" />
+                  <div className="p-4 space-y-3">
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                    <Skeleton className="h-8 w-full mt-4" />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : machines.length === 0 ? (
+            <Card className="border-border/70 shadow-sm p-12 text-center">
+              <div className="flex flex-col items-center justify-center max-w-md mx-auto space-y-3">
+                <div className="p-3 rounded-full bg-muted text-muted-foreground">
+                  <Cpu className="size-8" />
+                </div>
+                <h3 className="text-base font-semibold text-foreground">
+                  No Attendance Machines Found
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {counts.total === 0
+                    ? "No attendance machines have been registered in the system yet."
+                    : "No machines match the selected filter criteria."}
+                </p>
+              </div>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {machines.map((machine) => {
+                const imageUrl = getFullImageUrl(machine.machine_image)
+                const isToggling = togglingId === machine.id
+
+                return (
+                  <Card
+                    key={machine.id}
+                    className="overflow-hidden border-border/60 hover:border-primary/40 hover:shadow-md transition-all group flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="relative h-44 bg-muted/40 overflow-hidden flex items-center justify-center border-b border-border/60">
+                        {imageUrl ? (
+                          <img
+                            src={imageUrl}
+                            alt={machine.machine_name}
+                            className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                              ;(e.target as HTMLElement).style.display = "none"
+                            }}
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
+                            <Cpu className="size-10 stroke-1 text-muted-foreground/60" />
+                            <span className="text-xs">No preview image</span>
+                          </div>
+                        )}
+
+                        <div className="absolute top-3 right-3">
+                          <Badge
+                            variant="secondary"
+                            className={`text-xs font-semibold px-2 py-0.5 shadow-xs ${
+                              machine.status === 1
+                                ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 dark:text-emerald-400"
+                                : "bg-muted text-muted-foreground border border-border"
+                            }`}
+                          >
+                            {machine.status === 1 ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+
+                        <div className="absolute bottom-3 left-3">
+                          <Badge
+                            variant="outline"
+                            className="text-[11px] font-medium bg-background/90 backdrop-blur-xs uppercase tracking-wider"
+                          >
+                            {machine.machine_type}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="p-4 space-y-3">
+                        <div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-xs font-medium text-primary uppercase tracking-wider">
+                              {machine.brand || "—"}
+                            </span>
+                            <span className="text-xs font-mono text-muted-foreground">
+                              {machine.model_number}
+                            </span>
+                          </div>
+                          <h3
+                            onClick={() => navigate(`/attendance-machines/${machine.id}`)}
+                            className="text-base font-semibold text-foreground line-clamp-1 mt-0.5 cursor-pointer hover:text-primary transition-colors"
+                          >
+                            {machine.machine_name}
+                          </h3>
+                        </div>
+
+                        {machine.specifications && (
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {machine.specifications}
+                          </p>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50 text-xs">
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <Users className="size-3.5 text-foreground/70 shrink-0" />
+                            <span className="truncate">
+                              {machine.user_capacity
+                                ? `${Number(machine.user_capacity).toLocaleString()} Users`
+                                : "—"}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <Wifi className="size-3.5 text-foreground/70 shrink-0" />
+                            <span className="truncate">{machine.connectivity || "—"}</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <Layers className="size-3.5 text-foreground/70 shrink-0" />
+                            <span className="truncate">{machine.push_protocol || "—"}</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-foreground font-semibold">
+                            <span>₹{Number(machine.unit_price || 0).toLocaleString("en-IN")}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-muted/20 border-t border-border/50 flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1">
+                        {canManageMachine && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleStatus(machine)}
+                            disabled={isToggling}
+                            title={machine.status === 1 ? "Deactivate" : "Activate"}
+                            className={`h-8 px-2 text-xs gap-1.5 cursor-pointer ${
+                              machine.status === 1
+                                ? "text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10"
+                                : "text-emerald-600 hover:bg-emerald-500/10"
+                            }`}
+                          >
+                            <Power className={`size-3.5 ${isToggling ? "animate-spin" : ""}`} />
+                            {machine.status === 1 ? "Deactivate" : "Activate"}
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="View Details"
+                          onClick={() => navigate(`/attendance-machines/${machine.id}`)}
+                          className="size-8 cursor-pointer"
+                        >
+                          <Eye className="size-3.5" />
+                        </Button>
+
+                        {canEditMachine && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Edit"
+                            onClick={() => navigate(`/attendance-machines/${machine.id}/edit`)}
+                            className="size-8 cursor-pointer"
+                          >
+                            <Pencil className="size-3.5" />
+                          </Button>
+                        )}
+
+                        {canDeleteMachine && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Delete"
+                            onClick={() => {
+                              setSelectedMachine(machine)
+                              setIsDeleteOpen(true)
+                            }}
+                            className="size-8 text-destructive hover:bg-destructive/10 cursor-pointer"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+
+          <Card className="border-border/70 shadow-sm overflow-hidden">
+            <DataPagination
+              pagination={pagination}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              isLoading={isLoading || isRefreshing}
+              itemLabel="machines"
+              className="border-t-0"
+            />
+          </Card>
+        </div>
       )}
-
-
 
       {/* DELETE CONFIRMATION MODAL DIALOG */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
@@ -759,7 +882,7 @@ export default function AttendanceMachines() {
               className="cursor-pointer gap-2"
             >
               {isDeleting && <RefreshCw className="size-4 animate-spin" />}
-              Delete Device
+              Delete Machine
             </Button>
           </DialogFooter>
         </DialogContent>

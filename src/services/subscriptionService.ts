@@ -7,6 +7,8 @@ import type {
   CreateItemPayload,
   SchoolSubscription,
   SubscriptionsListResult,
+  PackagesListResult,
+  PackagesListParams,
   ApproveSubscriptionPayload,
   RejectSubscriptionPayload,
 } from "@/types/subscription"
@@ -46,12 +48,12 @@ async function handleResponse<T>(res: Response, fallbackMessage: string): Promis
 }
 
 /**
- * List all packages with optional search and filters
+ * List packages (server-paginated) with optional search, filters, page and limit
  */
 export async function fetchPackagesApi(
   token: string,
-  params?: { search?: string; status?: number | string; billing_cycle?: string }
-): Promise<SubscriptionPackage[]> {
+  params?: PackagesListParams
+): Promise<PackagesListResult> {
   const query = new URLSearchParams()
   if (params?.search && params.search.trim()) {
     query.set("search", params.search.trim())
@@ -62,6 +64,12 @@ export async function fetchPackagesApi(
   if (params?.billing_cycle && params.billing_cycle !== "all") {
     query.set("billing_cycle", params.billing_cycle)
   }
+  if (params?.page) {
+    query.set("page", String(params.page))
+  }
+  if (params?.limit) {
+    query.set("limit", String(params.limit))
+  }
 
   const queryString = query.toString() ? `?${query.toString()}` : ""
   const response = await fetch(`${API_BASE_URL}/packages${queryString}`, {
@@ -69,7 +77,7 @@ export async function fetchPackagesApi(
     headers: getAuthHeaders(token),
   })
 
-  return handleResponse<SubscriptionPackage[]>(response, "Failed to retrieve subscription packages.")
+  return handleResponse<PackagesListResult>(response, "Failed to retrieve subscription packages.")
 }
 
 /**

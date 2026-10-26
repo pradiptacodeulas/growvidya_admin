@@ -1,3 +1,5 @@
+import type { CatalogCounts, PaginationMeta } from "@/types/pagination"
+
 export type BillingCycle = 'monthly' | 'quarterly' | 'half_yearly' | 'annual' | 'trial'
 
 export interface SubscriptionItem {
@@ -64,6 +66,28 @@ export interface PackagesApiResponse {
   success: boolean
   message: string
   data: SubscriptionPackage[]
+}
+
+/** Global (unfiltered) package catalog totals, plus subscription item totals. */
+export interface PackageCounts extends CatalogCounts {
+  total_items: number
+  active_items: number
+}
+
+/** Paginated response of GET /packages */
+export interface PackagesListResult {
+  packages: SubscriptionPackage[]
+  pagination: PaginationMeta
+  counts: PackageCounts
+}
+
+/** Query params accepted by GET /packages */
+export interface PackagesListParams {
+  search?: string
+  status?: number | string
+  billing_cycle?: string
+  page?: number
+  limit?: number
 }
 
 export interface SinglePackageApiResponse {

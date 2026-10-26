@@ -5,7 +5,13 @@ import type {
   StoragePlanFilterParams,
   CreateStoragePlanPayload,
   UpdateStoragePlanPayload,
+  StoragePlanListResult,
 } from "@/types/storagePlan"
+import {
+  EMPTY_COUNTS,
+  EMPTY_PAGINATION,
+  type PaginationParams,
+} from "@/types/pagination"
 
 function getAuthHeaders(token?: string | null, isJson = true): Record<string, string> {
   const headers: Record<string, string> = {}
@@ -45,12 +51,13 @@ async function handleResponse<T>(res: Response, fallbackMessage: string): Promis
 }
 
 /**
- * Fetch all storage plans with optional search & status filter
+ * Fetch one page of storage plans with optional search & status filter.
+ * Returns `{ plans, pagination, counts }` (counts are global, unfiltered totals).
  */
 export async function fetchStoragePlansApi(
   token: string,
-  params?: StoragePlanFilterParams
-): Promise<StoragePlan[]> {
+  params?: StoragePlanFilterParams & PaginationParams
+): Promise<StoragePlanListResult> {
   const query = new URLSearchParams()
   if (params?.search && params.search.trim()) {
     query.set("search", params.search.trim())
@@ -59,14 +66,29 @@ export async function fetchStoragePlansApi(
     query.set("status", String(params.status))
   }
 
+  if (params?.page && params.page > 0) {
+    query.set("page", String(params.page))
+  }
+  if (params?.limit && params.limit > 0) {
+    query.set("limit", String(params.limit))
+  }
+
   const queryString = query.toString() ? `?${query.toString()}` : ""
+
+  const normalize = (data: Partial<StoragePlanListResult> | null): StoragePlanListResult => ({
+    plans: Array.isArray(data?.plans) ? data.plans : [],
+    pagination: data?.pagination ?? EMPTY_PAGINATION,
+    counts: data?.counts ?? EMPTY_COUNTS,
+  })
 
   try {
     const res = await fetch(`${API_BASE_URL}/storage-plans${queryString}`, {
       method: "GET",
       headers: getAuthHeaders(token),
     })
-    return await handleResponse<StoragePlan[]>(res, "Failed to retrieve storage plans.")
+    return normalize(
+      await handleResponse<StoragePlanListResult>(res, "Failed to retrieve storage plans.")
+    )
   } catch (err: unknown) {
     const status = (err as { status?: number })?.status
     if (status === 404 || status === 403) {
@@ -74,7 +96,9 @@ export async function fetchStoragePlansApi(
         method: "GET",
         headers: getAuthHeaders(token),
       })
-      return await handleResponse<StoragePlan[]>(fallbackRes, "Failed to retrieve storage plans.")
+      return normalize(
+        await handleResponse<StoragePlanListResult>(fallbackRes, "Failed to retrieve storage plans.")
+      )
     }
     throw err
   }

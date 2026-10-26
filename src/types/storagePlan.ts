@@ -1,3 +1,5 @@
+import type { PaginationMeta, CatalogCounts } from "@/types/pagination"
+
 export interface CapacityUnit {
   id: number
   unit_name: string
@@ -48,4 +50,12 @@ export interface UpdateStoragePlanPayload {
 export interface StoragePlanFilterParams {
   search?: string
   status?: number | string | "all"
+}
+
+
+/** Paginated response of GET /storage-plans (see src/types/pagination.ts). */
+export interface StoragePlanListResult {
+  plans: StoragePlan[]
+  pagination: PaginationMeta
+  counts: CatalogCounts
 }

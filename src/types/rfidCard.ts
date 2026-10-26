@@ -1,3 +1,5 @@
+import type { CatalogCounts, PaginationMeta } from "@/types/pagination"
+
 export type RfidCardType = 'pvc_card' | 'keyfob' | 'wristband' | 'sticker' | string
 
 export interface RfidCard {
@@ -21,6 +23,13 @@ export interface RfidCardFilterParams {
   search?: string
   status?: string | number
   card_type?: string
+}
+
+/** Paginated response of GET /rfid-cards (rows for current page + global counts). */
+export interface RfidCardListResult {
+  cards: RfidCard[]
+  pagination: PaginationMeta
+  counts: CatalogCounts
 }
 
 export interface CreateRfidCardPayload {
