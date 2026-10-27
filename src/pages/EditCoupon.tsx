@@ -68,6 +68,7 @@ export default function EditCoupon() {
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [maxUses, setMaxUses] = useState("")
+  const [maxUsesPerUser, setMaxUsesPerUser] = useState("1")
   const [status, setStatus] = useState<1 | 0>(1)
 
   // Interactive Live Calculator Test Value
@@ -99,6 +100,7 @@ export default function EditCoupon() {
         setStartDate(coupon.start_date ? coupon.start_date.slice(0, 10) : "")
         setEndDate(coupon.end_date ? coupon.end_date.slice(0, 10) : "")
         setMaxUses(coupon.max_uses ? String(coupon.max_uses) : "")
+        setMaxUsesPerUser(coupon.max_uses_per_user ? String(coupon.max_uses_per_user) : "1")
         setStatus(coupon.status === 1 ? 1 : 0)
         setIsLoading(false)
       })
@@ -166,6 +168,23 @@ export default function EditCoupon() {
       return
     }
 
+    const parsedPerUser = parseInt(maxUsesPerUser, 10)
+    if (!maxUsesPerUser || isNaN(parsedPerUser) || parsedPerUser < 1) {
+      toast.error("Please enter a valid positive integer (>= 1) for Usage Limit Per User.")
+      return
+    }
+
+    const parsedMaxUses = maxUses ? parseInt(maxUses, 10) : null
+    if (parsedMaxUses !== null && (isNaN(parsedMaxUses) || parsedMaxUses < 1)) {
+      toast.error("Total usage limit must be a positive integer.")
+      return
+    }
+
+    if (parsedMaxUses !== null && parsedPerUser > parsedMaxUses) {
+      toast.error("Usage Limit Per User cannot exceed Total Usage Limit.")
+      return
+    }
+
     if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
       toast.error("End date cannot be earlier than start date.")
       return
@@ -186,7 +205,8 @@ export default function EditCoupon() {
             : null,
         start_date: startDate || null,
         end_date: endDate || null,
-        max_uses: maxUses ? parseInt(maxUses, 10) : null,
+        max_uses: parsedMaxUses,
+        max_uses_per_user: parsedPerUser,
         status,
       })
 
@@ -201,7 +221,7 @@ export default function EditCoupon() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-border/80">
         <div className="flex items-center gap-3">
@@ -477,7 +497,7 @@ export default function EditCoupon() {
 
                     <div className="space-y-1.5">
                       <Label htmlFor="max-uses" className="text-xs font-semibold">
-                        Total Usage Limit
+                        Total Usage Limit (All Users)
                       </Label>
                       <Input
                         id="max-uses"
@@ -491,6 +511,22 @@ export default function EditCoupon() {
                     </div>
 
                     <div className="space-y-1.5">
+                      <Label htmlFor="max-uses-per-user" className="text-xs font-semibold">
+                        Usage Limit Per User <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="max-uses-per-user"
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="e.g. 1"
+                        value={maxUsesPerUser}
+                        onChange={(e) => setMaxUsesPerUser(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1.5 sm:col-span-2">
                       <Label htmlFor="status-select" className="text-xs font-semibold">
                         Coupon Status
                       </Label>
@@ -617,6 +653,19 @@ export default function EditCoupon() {
                       {startDate || endDate
                         ? `${startDate || "Open"} to ${endDate || "Ongoing"}`
                         : "Always Valid"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Total Usage Limit:</span>
+                    <span className="font-semibold text-foreground">
+                      {maxUses ? `${maxUses} total redemptions` : "Unlimited"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Limit Per User:</span>
+                    <span className="font-semibold text-primary">
+                      {parseInt(maxUsesPerUser, 10) || 1}{" "}
+                      {(parseInt(maxUsesPerUser, 10) || 1) === 1 ? "time" : "times"} / user
                     </span>
                   </div>
                 </div>

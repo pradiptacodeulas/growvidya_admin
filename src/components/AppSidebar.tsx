@@ -32,6 +32,8 @@ import {
   Users,
   Wallet,
   Mail,
+  ShoppingBag,
+  Headset,
 } from "lucide-react"
 import { Link, useLocation } from "react-router"
 import { useState, useEffect } from "react"
@@ -53,6 +55,12 @@ const navItems = [
     url: "/bank-accounts",
     icon: Landmark,
     moduleKey: "bank_accounts",
+  },
+  {
+    title: "Help & Support",
+    url: "/support-tickets",
+    icon: Headset,
+    moduleKey: "support_tickets",
   },
   {
     title: "Roles & Permissions",
@@ -78,13 +86,7 @@ export function AppSidebar() {
   const canViewAttendanceMachines = can("attendance_machines", "can_view")
   const canViewRfidCards = can("rfid_cards", "can_view")
   const canViewStoragePlans = can("storage_plans", "can_view")
-  const canViewAnySubscriptionSubItem =
-    canViewSubscriptions ||
-    canViewPackages ||
-    canViewAttendanceMachines ||
-    canViewRfidCards ||
-    canViewStoragePlans
-
+  const canViewAnySubscriptionSubItem = canViewSubscriptions || canViewPackages
   const canViewSettings = can("settings", "can_view")
 
   const visibleNavItems = navItems.filter((item) => can(item.moduleKey, "can_view"))
@@ -93,26 +95,37 @@ export function AppSidebar() {
     location.pathname.startsWith("/subscriptions") ||
     location.pathname.startsWith("/schools-subscriptions") ||
     location.pathname.startsWith("/plans-pricing") ||
-    location.pathname.startsWith("/packages") ||
-    location.pathname.startsWith("/attendance-machines") ||
-    location.pathname.startsWith("/rfid-cards") ||
-    location.pathname.startsWith("/storage-plans")
+    location.pathname.startsWith("/packages")
 
+  const isAttendanceMachineRoute = location.pathname.startsWith("/attendance-machines")
+  const isRfidRoute = location.pathname.startsWith("/rfid-cards")
+  const isStoragePlanRoute = location.pathname.startsWith("/storage-plans")
   const isSettingsRoute = location.pathname.startsWith("/settings")
 
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(true)
+  const [isAttendanceMachineOpen, setIsAttendanceMachineOpen] = useState(true)
+  const [isRfidOpen, setIsRfidOpen] = useState(true)
+  const [isStoragePlanOpen, setIsStoragePlanOpen] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(true)
 
   useEffect(() => {
-    if (isSubscriptionRoute) {
-      setIsSubscriptionOpen(true)
-    }
+    if (isSubscriptionRoute) setIsSubscriptionOpen(true)
   }, [isSubscriptionRoute])
 
   useEffect(() => {
-    if (isSettingsRoute) {
-      setIsSettingsOpen(true)
-    }
+    if (isAttendanceMachineRoute) setIsAttendanceMachineOpen(true)
+  }, [isAttendanceMachineRoute])
+
+  useEffect(() => {
+    if (isRfidRoute) setIsRfidOpen(true)
+  }, [isRfidRoute])
+
+  useEffect(() => {
+    if (isStoragePlanRoute) setIsStoragePlanOpen(true)
+  }, [isStoragePlanRoute])
+
+  useEffect(() => {
+    if (isSettingsRoute) setIsSettingsOpen(true)
   }, [isSettingsRoute])
 
   const isApprovalsActive =
@@ -124,10 +137,22 @@ export function AppSidebar() {
     location.pathname.startsWith("/plans-pricing") ||
     location.pathname.startsWith("/packages")
 
-  const isAttendanceMachineActive = location.pathname.startsWith("/attendance-machines")
-  const isRfidActive = location.pathname.startsWith("/rfid-cards")
-  const isStoragePlanActive = location.pathname.startsWith("/storage-plans")
+  const isManageMachinesActive =
+    isAttendanceMachineRoute && !location.pathname.startsWith("/attendance-machines/buyers")
+  const isMachineBuyersActive = location.pathname.startsWith("/attendance-machines/buyers")
+
+  const isManageRfidActive =
+    isRfidRoute && !location.pathname.startsWith("/rfid-cards/buyers")
+  const isRfidBuyersActive = location.pathname.startsWith("/rfid-cards/buyers")
+
+  const isManageStorageActive =
+    isStoragePlanRoute && !location.pathname.startsWith("/storage-plans/buyers")
+  const isStorageBuyersActive = location.pathname.startsWith("/storage-plans/buyers")
+
   const isSubscriptionParentActive = !isSubscriptionOpen && isSubscriptionRoute
+  const isAttendanceMachineParentActive = !isAttendanceMachineOpen && isAttendanceMachineRoute
+  const isRfidParentActive = !isRfidOpen && isRfidRoute
+  const isStoragePlanParentActive = !isStoragePlanOpen && isStoragePlanRoute
 
   const isPaymentGatewayActive =
     location.pathname === "/settings" ||
@@ -210,7 +235,7 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               )}
 
-              {/* Subscription Dropdown */}
+              {/* Subscription Dropdown (Base Subscriptions & Packages) */}
               {canViewAnySubscriptionSubItem && (
                 <SidebarMenuItem>
                   <SidebarMenuButton
@@ -233,7 +258,6 @@ export function AppSidebar() {
 
                   {isSubscriptionOpen && (
                     <SidebarMenuSub>
-                      {/* Plan Approvals Submenu */}
                       {canViewSubscriptions && (
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
@@ -247,7 +271,6 @@ export function AppSidebar() {
                         </SidebarMenuSubItem>
                       )}
 
-                      {/* Packages & Pricing Submenu */}
                       {canViewPackages && (
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
@@ -260,48 +283,153 @@ export function AppSidebar() {
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )}
+                    </SidebarMenuSub>
+                  )}
+                </SidebarMenuItem>
+              )}
 
-                      {/* Attendance Machine Submenu */}
-                      {canViewAttendanceMachines && (
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton
-                            isActive={isAttendanceMachineActive}
-                            className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
-                            render={<Link to="/attendance-machines" />}
-                          >
-                            <Cpu className="size-3.5 shrink-0" />
-                            <span>Attendance Machine</span>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
+              {/* Attendance Machine Dropdown (Manage + Buyers) */}
+              {canViewAttendanceMachines && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setIsAttendanceMachineOpen((prev) => !prev)}
+                    isActive={isAttendanceMachineParentActive}
+                    tooltip="Attendance Machine"
+                    className="h-9 px-3 text-[14px] font-medium gap-3 transition-colors [&>svg]:size-[18px] cursor-pointer justify-between"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Cpu className="shrink-0" />
+                      <span className="truncate">Attendance Machine</span>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        "size-4 shrink-0 transition-transform duration-200 text-muted-foreground group-data-[collapsible=icon]:hidden",
+                        isAttendanceMachineOpen && "rotate-180"
                       )}
+                    />
+                  </SidebarMenuButton>
 
-                      {/* RFID Submenu */}
-                      {canViewRfidCards && (
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton
-                            isActive={isRfidActive}
-                            className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
-                            render={<Link to="/rfid-cards" />}
-                          >
-                            <Radio className="size-3.5 shrink-0" />
-                            <span>RFID</span>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      )}
+                  {isAttendanceMachineOpen && (
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          isActive={isManageMachinesActive}
+                          className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                          render={<Link to="/attendance-machines" />}
+                        >
+                          <Cpu className="size-3.5 shrink-0" />
+                          <span>Manage Machines</span>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
 
-                      {/* Storage Plan Submenu */}
-                      {canViewStoragePlans && (
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton
-                            isActive={isStoragePlanActive}
-                            className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
-                            render={<Link to="/storage-plans" />}
-                          >
-                            <HardDrive className="size-3.5 shrink-0" />
-                            <span>Storage Plan</span>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          isActive={isMachineBuyersActive}
+                          className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                          render={<Link to="/attendance-machines/buyers" />}
+                        >
+                          <ShoppingBag className="size-3.5 shrink-0 text-primary" />
+                          <span>Machine Buyers</span>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  )}
+                </SidebarMenuItem>
+              )}
+
+              {/* RFID Dropdown (Manage + Buyers) */}
+              {canViewRfidCards && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setIsRfidOpen((prev) => !prev)}
+                    isActive={isRfidParentActive}
+                    tooltip="RFID"
+                    className="h-9 px-3 text-[14px] font-medium gap-3 transition-colors [&>svg]:size-[18px] cursor-pointer justify-between"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Radio className="shrink-0" />
+                      <span className="truncate">RFID</span>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        "size-4 shrink-0 transition-transform duration-200 text-muted-foreground group-data-[collapsible=icon]:hidden",
+                        isRfidOpen && "rotate-180"
                       )}
+                    />
+                  </SidebarMenuButton>
+
+                  {isRfidOpen && (
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          isActive={isManageRfidActive}
+                          className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                          render={<Link to="/rfid-cards" />}
+                        >
+                          <Radio className="size-3.5 shrink-0" />
+                          <span>Manage RFID Cards</span>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          isActive={isRfidBuyersActive}
+                          className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                          render={<Link to="/rfid-cards/buyers" />}
+                        >
+                          <ShoppingBag className="size-3.5 shrink-0 text-primary" />
+                          <span>RFID Buyers</span>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  )}
+                </SidebarMenuItem>
+              )}
+
+              {/* Storage Plan Dropdown (Manage + Buyers) */}
+              {canViewStoragePlans && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setIsStoragePlanOpen((prev) => !prev)}
+                    isActive={isStoragePlanParentActive}
+                    tooltip="Storage Plan"
+                    className="h-9 px-3 text-[14px] font-medium gap-3 transition-colors [&>svg]:size-[18px] cursor-pointer justify-between"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <HardDrive className="shrink-0" />
+                      <span className="truncate">Storage Plan</span>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        "size-4 shrink-0 transition-transform duration-200 text-muted-foreground group-data-[collapsible=icon]:hidden",
+                        isStoragePlanOpen && "rotate-180"
+                      )}
+                    />
+                  </SidebarMenuButton>
+
+                  {isStoragePlanOpen && (
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          isActive={isManageStorageActive}
+                          className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                          render={<Link to="/storage-plans" />}
+                        >
+                          <HardDrive className="size-3.5 shrink-0" />
+                          <span>Manage Storage</span>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          isActive={isStorageBuyersActive}
+                          className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                          render={<Link to="/storage-plans/buyers" />}
+                        >
+                          <ShoppingBag className="size-3.5 shrink-0 text-primary" />
+                          <span>Storage Buyers</span>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
@@ -328,7 +456,7 @@ export function AppSidebar() {
                 )
               })}
 
-              {/* Settings Dropdown with Payment Gateway Submenu */}
+              {/* Settings Dropdown */}
               {canViewSettings && (
                 <SidebarMenuItem>
                   <SidebarMenuButton

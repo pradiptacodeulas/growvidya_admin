@@ -1,14 +1,22 @@
 import { useEffect } from "react"
 import { Provider } from "react-redux"
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router"
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router"
 import { store, useAppDispatch, useAppSelector } from "@/store/store"
 import { fetchAdminProfile } from "@/store/authSlice"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AppSidebar } from "@/components/AppSidebar"
 import { ProfileDropdown } from "@/components/ProfileDropdown"
+import { NotificationDropdown } from "@/components/NotificationDropdown"
 import { RoutePermissionGuard } from "@/components/PermissionGuard"
 import { usePermission } from "@/hooks/usePermission"
+import { toast } from "sonner"
+import {
+  getNotificationPermission,
+  playNotificationChime,
+  registerSaasServiceWorker,
+  subscribeSaasWebPush,
+} from "@/services/webPushService"
 import { Loader2 } from "lucide-react"
 
 // Pages
@@ -25,13 +33,16 @@ import CreateBankAccount from "@/pages/CreateBankAccount"
 import EditBankAccount from "@/pages/EditBankAccount"
 import BankAccountDetails from "@/pages/BankAccountDetails"
 import AttendanceMachines from "@/pages/AttendanceMachines"
+import AttendanceMachineBuyers from "@/pages/AttendanceMachineBuyers"
 import CreateAttendanceMachine from "@/pages/CreateAttendanceMachine"
 import EditAttendanceMachine from "@/pages/EditAttendanceMachine"
 import AttendanceMachineDetails from "@/pages/AttendanceMachineDetails"
 import RfidCards from "@/pages/RfidCards"
+import RfidCardBuyers from "@/pages/RfidCardBuyers"
 import CreateRfidCard from "@/pages/CreateRfidCard"
 import EditRfidCard from "@/pages/EditRfidCard"
 import StoragePlans from "@/pages/StoragePlans"
+import StoragePlanBuyers from "@/pages/StoragePlanBuyers"
 import CreateStoragePlan from "@/pages/CreateStoragePlan"
 import EditStoragePlan from "@/pages/EditStoragePlan"
 
@@ -41,6 +52,8 @@ import EditPackage from "@/pages/EditPackage"
 import PackageItems from "@/pages/PackageItems"
 import RolesPermissions from "@/pages/RolesPermissions"
 import SubAdmins from "@/pages/SubAdmins"
+import SupportTickets from "@/pages/SupportTickets"
+import SupportTicketDetails from "@/pages/SupportTicketDetails"
 import Settings from "@/pages/Settings"
 import Profile from "@/pages/Profile"
 import EditProfile from "@/pages/EditProfile"
@@ -86,13 +99,50 @@ function DefaultRouteRedirect() {
 function DashboardLayout({ children }: { children: React.ReactNode }) {
   const dispatch = useAppDispatch()
   const location = useLocation()
+  const navigate = useNavigate()
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated)
+  const token = useAppSelector((state) => state.auth.token)
 
   useEffect(() => {
     if (isAuthenticated) {
       dispatch(fetchAdminProfile())
     }
   }, [dispatch, isAuthenticated])
+
+  // Register Service Worker & Web Push subscription for SaaS Admin
+  useEffect(() => {
+    if (!isAuthenticated || !token) return
+    const perm = getNotificationPermission()
+    if (perm === "granted") {
+      subscribeSaasWebPush(token, false).catch(() => {})
+    } else {
+      registerSaasServiceWorker().catch(() => {})
+    }
+
+    if ("serviceWorker" in navigator) {
+      const handleSwMessage = (event: MessageEvent) => {
+        if (event.data?.type === "GROWVIDYA_SAAS_PUSH_RECEIVED") {
+          const payload = event.data.payload
+          const targetUrl = payload?.data?.url
+          playNotificationChime()
+          toast.info(payload?.title || "Support Notification", {
+            description: payload?.body || "",
+            action: targetUrl
+              ? {
+                  label: "View",
+                  onClick: () => navigate(targetUrl),
+                }
+              : undefined,
+          })
+          window.dispatchEvent(
+            new CustomEvent("growvidya:saas_support_ticket_push", { detail: payload })
+          )
+        }
+      }
+      navigator.serviceWorker.addEventListener("message", handleSwMessage)
+      return () => navigator.serviceWorker.removeEventListener("message", handleSwMessage)
+    }
+  }, [isAuthenticated, token, navigate])
 
   // Keep effective permissions synchronized when window regains focus
   useEffect(() => {
@@ -117,6 +167,9 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith("/coupons/")) {
       return "Coupon Details"
     }
+    if (pathname.startsWith("/support-tickets/")) {
+      return "Support Ticket Details"
+    }
     if (pathname.startsWith("/bank-accounts/") && !pathname.includes("/create") && !pathname.includes("/edit")) {
       return "Bank Account Details"
     }
@@ -125,6 +178,9 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     }
     if (pathname.includes("/bank-accounts") && pathname.includes("/edit")) {
       return "Edit Bank Account"
+    }
+    if (pathname === "/attendance-machines/buyers") {
+      return "Attendance Machine Buyers"
     }
     if (pathname.startsWith("/attendance-machines/") && !pathname.includes("/create") && !pathname.includes("/edit")) {
       return "Attendance Machine Details"
@@ -135,11 +191,17 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     if (pathname.includes("/attendance-machines") && pathname.includes("/edit")) {
       return "Edit Attendance Machine"
     }
+    if (pathname === "/rfid-cards/buyers") {
+      return "RFID Card Buyers"
+    }
     if (pathname === "/rfid-cards/create") {
       return "Add New RFID Card"
     }
     if (pathname.includes("/rfid-cards") && pathname.includes("/edit")) {
       return "Edit RFID Card"
+    }
+    if (pathname === "/storage-plans/buyers") {
+      return "Storage Plan Buyers"
     }
     if (pathname === "/storage-plans/create") {
       return "Add New Storage Plan"
@@ -167,15 +229,17 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
       case "/saas-admin/packages":
         return "Packages & Pricing"
       case "/attendance-machines":
-        return "Attendance Machines"
+        return "Manage Attendance Machines"
       case "/rfid-cards":
-        return "RFID Cards"
+        return "Manage RFID Cards"
       case "/storage-plans":
-        return "Storage Plans"
+        return "Manage Storage Plans"
       case "/coupons":
         return "Coupons"
       case "/bank-accounts":
         return "Bank Accounts"
+      case "/support-tickets":
+        return "Help & Support Tickets"
       case "/roles":
       case "/roles-permissions":
         return "Roles & Permissions"
@@ -213,6 +277,7 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="flex items-center gap-3">
+              <NotificationDropdown />
               <ProfileDropdown />
             </div>
           </header>
@@ -285,6 +350,14 @@ function AppRoutes() {
                   }
                 />
                 <Route
+                  path="/attendance-machines/buyers"
+                  element={
+                    <RoutePermissionGuard module="attendance_machines" action="can_view">
+                      <AttendanceMachineBuyers />
+                    </RoutePermissionGuard>
+                  }
+                />
+                <Route
                   path="/attendance-machines/create"
                   element={
                     <RoutePermissionGuard module="attendance_machines" action="can_add">
@@ -325,6 +398,14 @@ function AppRoutes() {
                   }
                 />
                 <Route
+                  path="/rfid-cards/buyers"
+                  element={
+                    <RoutePermissionGuard module="rfid_cards" action="can_view">
+                      <RfidCardBuyers />
+                    </RoutePermissionGuard>
+                  }
+                />
+                <Route
                   path="/rfid-cards/create"
                   element={
                     <RoutePermissionGuard module="rfid_cards" action="can_add">
@@ -353,6 +434,14 @@ function AppRoutes() {
                   element={
                     <RoutePermissionGuard module="storage_plans" action="can_view">
                       <StoragePlans />
+                    </RoutePermissionGuard>
+                  }
+                />
+                <Route
+                  path="/storage-plans/buyers"
+                  element={
+                    <RoutePermissionGuard module="storage_plans" action="can_view">
+                      <StoragePlanBuyers />
                     </RoutePermissionGuard>
                   }
                 />
@@ -457,6 +546,22 @@ function AppRoutes() {
                   element={
                     <RoutePermissionGuard module="bank_accounts" action="can_edit">
                       <EditBankAccount />
+                    </RoutePermissionGuard>
+                  }
+                />
+                <Route
+                  path="/support-tickets"
+                  element={
+                    <RoutePermissionGuard module="support_tickets" action="can_view">
+                      <SupportTickets />
+                    </RoutePermissionGuard>
+                  }
+                />
+                <Route
+                  path="/support-tickets/:id"
+                  element={
+                    <RoutePermissionGuard module="support_tickets" action="can_view">
+                      <SupportTicketDetails />
                     </RoutePermissionGuard>
                   }
                 />

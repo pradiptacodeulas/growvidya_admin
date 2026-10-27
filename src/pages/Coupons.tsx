@@ -307,7 +307,7 @@ export default function Coupons() {
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -545,7 +545,8 @@ export default function Coupons() {
               <TableHead className="w-[220px]">Coupon Code</TableHead>
               <TableHead>Discount</TableHead>
               <TableHead>Order Limits</TableHead>
-              <TableHead>Usage</TableHead>
+              <TableHead>Total Usage</TableHead>
+              <TableHead>Limit Per User</TableHead>
               <TableHead>Validity</TableHead>
               <TableHead className="text-right">Status / Actions</TableHead>
             </TableRow>
@@ -569,6 +570,9 @@ export default function Coupons() {
                     <Skeleton className="h-4 w-16" />
                   </TableCell>
                   <TableCell>
+                    <Skeleton className="h-5 w-20" />
+                  </TableCell>
+                  <TableCell>
                     <Skeleton className="h-4 w-32" />
                   </TableCell>
                   <TableCell className="text-right">
@@ -578,7 +582,7 @@ export default function Coupons() {
               ))
             ) : coupons.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-48 text-center">
+                <TableCell colSpan={7} className="h-48 text-center">
                   <div className="flex flex-col items-center justify-center space-y-2">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
                       <Ticket className="h-6 w-6" />
@@ -701,7 +705,7 @@ export default function Coupons() {
                       </div>
                     </TableCell>
 
-                    {/* Usage & Limits */}
+                    {/* Total Usage */}
                     <TableCell>
                       <div className="space-y-1 max-w-[120px]">
                         <div className="flex items-center justify-between text-xs">
@@ -721,6 +725,14 @@ export default function Coupons() {
                           </div>
                         )}
                       </div>
+                    </TableCell>
+
+                    {/* Limit Per User */}
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs font-semibold">
+                        {coupon.max_uses_per_user || 1}{" "}
+                        {Number(coupon.max_uses_per_user || 1) === 1 ? "time" : "times"} / user
+                      </Badge>
                     </TableCell>
 
                     {/* Validity Window */}

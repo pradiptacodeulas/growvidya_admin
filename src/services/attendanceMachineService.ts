@@ -1,12 +1,28 @@
 import { API_BASE_URL, SERVER_BASE_URL } from "@/config/api"
 import type {
   AttendanceMachine,
+  AttendanceMachineBuyerCounts,
+  AttendanceMachineBuyerListResult,
+  AttendanceMachineBuyerOrder,
   AttendanceMachineListParams,
   AttendanceMachineListResult,
   CreateAttendanceMachinePayload,
+  UpdateAttendanceMachineBuyerPayload,
   UpdateAttendanceMachinePayload,
 } from "@/types/attendanceMachine"
-import { EMPTY_COUNTS, EMPTY_PAGINATION } from "@/types/pagination"
+import { EMPTY_COUNTS, EMPTY_PAGINATION, type PaginationParams } from "@/types/pagination"
+
+const EMPTY_BUYER_COUNTS: AttendanceMachineBuyerCounts = {
+  total_orders: 0,
+  total_quantity: 0,
+  total_revenue: 0,
+  pending_count: 0,
+  approved_count: 0,
+  dispatched_count: 0,
+  delivered_count: 0,
+  cancelled_count: 0,
+  active_devices: 0,
+}
 
 function getAuthHeaders(token?: string | null, isJson = true): Record<string, string> {
   const headers: Record<string, string> = {}
@@ -45,9 +61,6 @@ async function handleResponse<T>(res: Response, fallbackMessage: string): Promis
   return json.data as T
 }
 
-/**
- * Normalize the list payload into the paginated shape.
- */
 function normalizeMachineList(
   data: AttendanceMachineListResult | null | undefined
 ): AttendanceMachineListResult {
@@ -58,10 +71,6 @@ function normalizeMachineList(
   }
 }
 
-/**
- * Fetch a paginated page of attendance machines from API.
- * Returns `{ machines, pagination, counts }` where `counts` are global (unfiltered) totals.
- */
 export async function fetchAttendanceMachinesApi(
   token: string,
   params?: AttendanceMachineListParams
@@ -111,9 +120,59 @@ export async function fetchAttendanceMachinesApi(
   }
 }
 
-/**
- * Fetch a single attendance machine by ID
- */
+export async function fetchAttendanceMachineBuyersApi(
+  token: string,
+  params?: { search?: string; status?: string; machine_id?: number | string } & PaginationParams
+): Promise<AttendanceMachineBuyerListResult> {
+  const query = new URLSearchParams()
+  if (params?.search && params.search.trim()) {
+    query.set("search", params.search.trim())
+  }
+  if (params?.status && params.status !== "all") {
+    query.set("status", params.status)
+  }
+  if (params?.machine_id && params.machine_id !== "all") {
+    query.set("machine_id", String(params.machine_id))
+  }
+  if (params?.page !== undefined) {
+    query.set("page", String(params.page))
+  }
+  if (params?.limit !== undefined) {
+    query.set("limit", String(params.limit))
+  }
+
+  const queryString = query.toString() ? `?${query.toString()}` : ""
+  const res = await fetch(`${API_BASE_URL}/attendance-machines/buyers${queryString}`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+  const data = await handleResponse<AttendanceMachineBuyerListResult>(
+    res,
+    "Failed to retrieve attendance machine buyers."
+  )
+  return {
+    buyers: Array.isArray(data?.buyers) ? data.buyers : [],
+    pagination: data?.pagination ?? EMPTY_PAGINATION,
+    counts: data?.counts ?? EMPTY_BUYER_COUNTS,
+  }
+}
+
+export async function updateAttendanceMachineBuyerOrderApi(
+  token: string,
+  id: number,
+  payload: UpdateAttendanceMachineBuyerPayload
+): Promise<AttendanceMachineBuyerOrder> {
+  const res = await fetch(`${API_BASE_URL}/attendance-machines/buyers/${id}`, {
+    method: "PATCH",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  })
+  return await handleResponse<AttendanceMachineBuyerOrder>(
+    res,
+    "Failed to update attendance machine order."
+  )
+}
+
 export async function fetchAttendanceMachineByIdApi(
   token: string,
   id: number
@@ -137,9 +196,6 @@ export async function fetchAttendanceMachineByIdApi(
   }
 }
 
-/**
- * Create a new attendance machine
- */
 export async function createAttendanceMachineApi(
   token: string,
   payload: CreateAttendanceMachinePayload
@@ -189,9 +245,6 @@ export async function createAttendanceMachineApi(
   }
 }
 
-/**
- * Update an existing attendance machine
- */
 export async function updateAttendanceMachineApi(
   token: string,
   id: number,
@@ -242,9 +295,6 @@ export async function updateAttendanceMachineApi(
   }
 }
 
-/**
- * Toggle attendance machine status (Active/Inactive)
- */
 export async function toggleAttendanceMachineStatusApi(
   token: string,
   id: number,
@@ -271,9 +321,6 @@ export async function toggleAttendanceMachineStatusApi(
   }
 }
 
-/**
- * Delete an attendance machine
- */
 export async function deleteAttendanceMachineApi(
   token: string,
   id: number

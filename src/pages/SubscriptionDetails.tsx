@@ -351,7 +351,7 @@ export default function SubscriptionDetails() {
 
   if (isLoading) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
         <div className="flex items-center gap-3">
           <Skeleton className="h-9 w-24" />
           <Skeleton className="h-6 w-48" />
@@ -369,7 +369,7 @@ export default function SubscriptionDetails() {
 
   if (error || !subscription) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
+      <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
         <Link to="/subscriptions">
           <Button variant="ghost" size="sm" className="gap-2 cursor-pointer">
             <ArrowLeft className="size-4" /> Back to Subscriptions
@@ -396,7 +396,7 @@ export default function SubscriptionDetails() {
   const daysRemaining = getDaysRemaining(subscription.end_date)
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
       {/* Breadcrumbs & Navigation */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">

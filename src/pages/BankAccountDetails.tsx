@@ -124,7 +124,7 @@ export default function BankAccountDetails() {
 
   if (isLoading) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
+      <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
         <div className="flex items-center gap-3">
           <Skeleton className="h-9 w-9 rounded-lg" />
           <div className="space-y-1.5">
@@ -143,7 +143,7 @@ export default function BankAccountDetails() {
 
   if (error || !account) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+      <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
         <div className="flex items-center gap-3 mb-6">
           <Button
             type="button"
@@ -179,7 +179,7 @@ export default function BankAccountDetails() {
   const qrUrl = getFullImageUrl(account.qr_code_image)
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
       {/* Breadcrumbs & Navigation */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Link to="/bank-accounts" className="hover:text-foreground transition-colors font-medium">

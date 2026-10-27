@@ -207,7 +207,7 @@ export default function CouponDetails() {
   const isExpired = coupon ? new Date(coupon.end_date).getTime() < currentTime : false
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
       {/* Breadcrumbs & Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <nav className="flex items-center flex-wrap text-xs sm:text-sm text-muted-foreground gap-1.5 sm:gap-2">
@@ -472,6 +472,21 @@ export default function CouponDetails() {
                         {formatDate(coupon.end_date)}
                       </p>
                     </div>
+
+                    <div className="space-y-1 p-3 rounded-lg border border-border/60 bg-muted/20">
+                      <span className="text-xs text-muted-foreground font-medium">Total Usage Limit</span>
+                      <p className="font-semibold text-foreground">
+                        {coupon.max_uses ? `${coupon.max_uses} total uses` : "Unlimited"}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1 p-3 rounded-lg border border-border/60 bg-muted/20">
+                      <span className="text-xs text-muted-foreground font-medium">Usage Limit Per User</span>
+                      <p className="font-semibold text-primary">
+                        {coupon.max_uses_per_user || 1}{" "}
+                        {Number(coupon.max_uses_per_user || 1) === 1 ? "time" : "times"} per user / school
+                      </p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -512,6 +527,7 @@ export default function CouponDetails() {
                         <TableRow className="bg-muted/40 hover:bg-muted/40">
                           <TableHead>Order #</TableHead>
                           <TableHead>User / Customer</TableHead>
+                          <TableHead>User Usage</TableHead>
                           <TableHead>Discount Applied</TableHead>
                           <TableHead className="text-right">Redeemed At</TableHead>
                         </TableRow>
@@ -520,12 +536,22 @@ export default function CouponDetails() {
                         {coupon.usages.map((usage, idx) => (
                           <TableRow key={usage.id ?? idx}>
                             <TableCell className="font-mono text-xs font-semibold">
-                              #{usage.order_id || idx + 1}
+                              #{usage.order_id || usage.subscription_id || idx + 1}
                             </TableCell>
                             <TableCell>
                               <div className="text-xs font-medium text-foreground">
                                 {usage.school_name || usage.user_email || `User #${usage.user_id || '—'}`}
                               </div>
+                              {usage.school_code && (
+                                <div className="text-[11px] font-mono text-muted-foreground">
+                                  {usage.school_code}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-[11px] font-mono">
+                                {usage.user_used_count ?? 1} / {coupon.max_uses_per_user || 1}
+                              </Badge>
                             </TableCell>
                             <TableCell>
                               <Badge variant="secondary" className="text-xs font-bold text-primary">
@@ -585,6 +611,13 @@ export default function CouponDetails() {
                       <span className="text-muted-foreground">Status</span>
                       <span className="font-semibold text-foreground">
                         {coupon.status === 1 ? "Active & Redeemable" : "Inactive"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Limit Per User</span>
+                      <span className="font-semibold text-primary">
+                        {coupon.max_uses_per_user || 1}{" "}
+                        {Number(coupon.max_uses_per_user || 1) === 1 ? "time" : "times"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">

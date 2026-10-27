@@ -11,6 +11,7 @@ export interface Coupon {
   start_date: string
   end_date: string
   max_uses: number | null
+  max_uses_per_user: number
   used_count: number
   status: number
   created_at: string
@@ -51,10 +52,14 @@ export interface CouponUsage {
   id?: number
   coupon_id?: number
   user_id?: number
+  school_id?: number
+  subscription_id?: number
   order_id?: number | string
   discount_amount?: string | number
   school_name?: string
+  school_code?: string
   user_email?: string
+  user_used_count?: number
   used_at?: string
   created_at?: string
   [key: string]: unknown
@@ -81,8 +86,8 @@ export interface CreateCouponPayload {
   start_date?: string | null
   end_date?: string | null
   max_uses?: number | string | null
+  max_uses_per_user: number
   status?: number
 }
 
 export interface UpdateCouponPayload extends Partial<CreateCouponPayload> {}
-

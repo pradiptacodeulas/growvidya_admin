@@ -62,7 +62,7 @@ export default function AttendanceMachineDetails() {
 
   if (isLoading) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+      <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
         <div className="flex items-center justify-between">
           <Skeleton className="h-9 w-40" />
           <div className="flex gap-2">
@@ -81,7 +81,7 @@ export default function AttendanceMachineDetails() {
 
   if (error || !machine) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
+      <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
         <Card className="border-destructive/40 p-8 text-center">
           <div className="flex flex-col items-center justify-center space-y-4">
             <div className="p-3 rounded-full bg-destructive/10 text-destructive">
@@ -120,7 +120,7 @@ export default function AttendanceMachineDetails() {
   const imageUrl = getFullImageUrl(machine.machine_image)
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
         <div>

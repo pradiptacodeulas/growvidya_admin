@@ -460,6 +460,7 @@ export interface DashboardStatsResponse {
     total: number
     active: number
     inactive: number
+    thisMonth: number
   }
   subscriptions: {
     total: number
@@ -470,7 +471,82 @@ export interface DashboardStatsResponse {
     suspended: number
     pendingPayments: number
     totalRevenue: number
+    thisMonthRevenue: number
+    totalDiscount: number
   }
+  revenueSummary: {
+    totalPlatformRevenue: number
+    thisMonthPlatformRevenue: number
+    subscriptionRevenue: number
+    addonRevenue: number
+    storageRevenue: number
+    machineRevenue: number
+    rfidRevenue: number
+  }
+  addonBuyers: {
+    storage: {
+      totalOrders: number
+      totalQuantity: number
+      totalRevenue: number
+      pendingCount: number
+      activeCount: number
+      expiredCount: number
+      cancelledCount: number
+    }
+    attendanceMachines: {
+      totalOrders: number
+      totalQuantity: number
+      totalRevenue: number
+      pendingCount: number
+      approvedCount: number
+      dispatchedCount: number
+      deliveredCount: number
+      cancelledCount: number
+    }
+    rfidCards: {
+      totalOrders: number
+      totalQuantity: number
+      totalRevenue: number
+      pendingCount: number
+      approvedCount: number
+      dispatchedCount: number
+      deliveredCount: number
+      cancelledCount: number
+    }
+  }
+  supportTickets: {
+    total: number
+    open: number
+    inProgress: number
+    resolved: number
+    closed: number
+    urgentOpen: number
+    priorities: {
+      urgent: number
+      high: number
+      medium: number
+      low: number
+    }
+  }
+  planDistribution: Array<{
+    id: number
+    plan_name: string
+    plan_code: string
+    billing_cycle: string
+    price: number
+    total_subscribers: number
+    active_subscribers: number
+    total_revenue: number
+  }>
+  monthlyTrends: Array<{
+    monthKey: string
+    label: string
+    subscriptionRevenue: number
+    addonRevenue: number
+    totalRevenue: number
+    newSchools: number
+    newSubscriptions: number
+  }>
   packages: {
     total: number
     active: number
@@ -478,6 +554,7 @@ export interface DashboardStatsResponse {
   coupons: {
     total: number
     active: number
+    totalUsages: number
   }
   storagePlans: {
     total: number
@@ -520,6 +597,17 @@ export interface DashboardStatsResponse {
     status: string
     payment_status: string
     created_at: string
+  }>
+  recentTickets: Array<{
+    id: number
+    ticket_number: string
+    subject: string
+    category: string
+    priority: string
+    status: string
+    created_at: string
+    school_name?: string
+    school_code?: string
   }>
 }
 

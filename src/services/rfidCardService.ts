@@ -2,11 +2,26 @@ import { API_BASE_URL, SERVER_BASE_URL } from "@/config/api"
 import { EMPTY_COUNTS, EMPTY_PAGINATION, type PaginationParams } from "@/types/pagination"
 import type {
   RfidCard,
+  RfidCardBuyerCounts,
+  RfidCardBuyerListResult,
+  RfidCardBuyerOrder,
   RfidCardFilterParams,
   RfidCardListResult,
   CreateRfidCardPayload,
+  UpdateRfidCardBuyerPayload,
   UpdateRfidCardPayload,
 } from "@/types/rfidCard"
+
+const EMPTY_BUYER_COUNTS: RfidCardBuyerCounts = {
+  total_orders: 0,
+  total_cards_ordered: 0,
+  total_revenue: 0,
+  pending_count: 0,
+  approved_count: 0,
+  dispatched_count: 0,
+  delivered_count: 0,
+  cancelled_count: 0,
+}
 
 function getAuthHeaders(token?: string | null, isJson = true): Record<string, string> {
   const headers: Record<string, string> = {}
@@ -45,10 +60,6 @@ async function handleResponse<T>(res: Response, fallbackMessage: string): Promis
   return json.data as T
 }
 
-/**
- * Normalizes the GET /rfid-cards payload into the paginated list shape.
- * Tolerates a legacy plain-array payload by treating it as a single page.
- */
 function normalizeRfidCardList(
   data: RfidCardListResult | RfidCard[] | null | undefined
 ): RfidCardListResult {
@@ -71,9 +82,6 @@ function normalizeRfidCardList(
   }
 }
 
-/**
- * Fetch a page of RFID cards from API (server-side filtering + pagination)
- */
 export async function fetchRfidCardsApi(
   token: string,
   params?: RfidCardFilterParams & PaginationParams
@@ -122,9 +130,59 @@ export async function fetchRfidCardsApi(
   }
 }
 
-/**
- * Fetch a single RFID card by ID
- */
+export async function fetchRfidCardBuyersApi(
+  token: string,
+  params?: { search?: string; status?: string; rfid_card_id?: number | string } & PaginationParams
+): Promise<RfidCardBuyerListResult> {
+  const query = new URLSearchParams()
+  if (params?.search && params.search.trim()) {
+    query.set("search", params.search.trim())
+  }
+  if (params?.status && params.status !== "all") {
+    query.set("status", params.status)
+  }
+  if (params?.rfid_card_id && params.rfid_card_id !== "all") {
+    query.set("rfid_card_id", String(params.rfid_card_id))
+  }
+  if (params?.page !== undefined) {
+    query.set("page", String(params.page))
+  }
+  if (params?.limit !== undefined) {
+    query.set("limit", String(params.limit))
+  }
+
+  const queryString = query.toString() ? `?${query.toString()}` : ""
+  const res = await fetch(`${API_BASE_URL}/rfid-cards/buyers${queryString}`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+  const data = await handleResponse<RfidCardBuyerListResult>(
+    res,
+    "Failed to retrieve RFID card buyers."
+  )
+  return {
+    buyers: Array.isArray(data?.buyers) ? data.buyers : [],
+    pagination: data?.pagination ?? EMPTY_PAGINATION,
+    counts: data?.counts ?? EMPTY_BUYER_COUNTS,
+  }
+}
+
+export async function updateRfidCardBuyerOrderApi(
+  token: string,
+  id: number,
+  payload: UpdateRfidCardBuyerPayload
+): Promise<RfidCardBuyerOrder> {
+  const res = await fetch(`${API_BASE_URL}/rfid-cards/buyers/${id}`, {
+    method: "PATCH",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  })
+  return await handleResponse<RfidCardBuyerOrder>(
+    res,
+    "Failed to update RFID card order."
+  )
+}
+
 export async function fetchRfidCardByIdApi(
   token: string,
   id: number
@@ -148,9 +206,6 @@ export async function fetchRfidCardByIdApi(
   }
 }
 
-/**
- * Create a new RFID card
- */
 export async function createRfidCardApi(
   token: string,
   payload: CreateRfidCardPayload
@@ -199,9 +254,6 @@ export async function createRfidCardApi(
   }
 }
 
-/**
- * Update an existing RFID card
- */
 export async function updateRfidCardApi(
   token: string,
   id: number,
@@ -251,9 +303,6 @@ export async function updateRfidCardApi(
   }
 }
 
-/**
- * Toggle RFID card status (Active/Inactive)
- */
 export async function toggleRfidCardStatusApi(
   token: string,
   id: number,
@@ -280,9 +329,6 @@ export async function toggleRfidCardStatusApi(
   }
 }
 
-/**
- * Delete an RFID card
- */
 export async function deleteRfidCardApi(
   token: string,
   id: number

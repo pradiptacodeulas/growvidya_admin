@@ -6,12 +6,26 @@ import type {
   CreateStoragePlanPayload,
   UpdateStoragePlanPayload,
   StoragePlanListResult,
+  StoragePlanBuyerCounts,
+  StoragePlanBuyerListResult,
+  StoragePlanBuyerOrder,
+  UpdateStoragePlanBuyerPayload,
 } from "@/types/storagePlan"
 import {
   EMPTY_COUNTS,
   EMPTY_PAGINATION,
   type PaginationParams,
 } from "@/types/pagination"
+
+const EMPTY_BUYER_COUNTS: StoragePlanBuyerCounts = {
+  total_orders: 0,
+  total_quantity: 0,
+  total_revenue: 0,
+  pending_count: 0,
+  active_count: 0,
+  expired_count: 0,
+  cancelled_count: 0,
+}
 
 function getAuthHeaders(token?: string | null, isJson = true): Record<string, string> {
   const headers: Record<string, string> = {}
@@ -50,10 +64,6 @@ async function handleResponse<T>(res: Response, fallbackMessage: string): Promis
   return json.data as T
 }
 
-/**
- * Fetch one page of storage plans with optional search & status filter.
- * Returns `{ plans, pagination, counts }` (counts are global, unfiltered totals).
- */
 export async function fetchStoragePlansApi(
   token: string,
   params?: StoragePlanFilterParams & PaginationParams
@@ -104,9 +114,59 @@ export async function fetchStoragePlansApi(
   }
 }
 
-/**
- * Fetch active capacity units (MB, GB, TB)
- */
+export async function fetchStoragePlanBuyersApi(
+  token: string,
+  params?: { search?: string; status?: string; storage_plan_id?: number | string } & PaginationParams
+): Promise<StoragePlanBuyerListResult> {
+  const query = new URLSearchParams()
+  if (params?.search && params.search.trim()) {
+    query.set("search", params.search.trim())
+  }
+  if (params?.status && params.status !== "all") {
+    query.set("status", params.status)
+  }
+  if (params?.storage_plan_id && params.storage_plan_id !== "all") {
+    query.set("storage_plan_id", String(params.storage_plan_id))
+  }
+  if (params?.page !== undefined) {
+    query.set("page", String(params.page))
+  }
+  if (params?.limit !== undefined) {
+    query.set("limit", String(params.limit))
+  }
+
+  const queryString = query.toString() ? `?${query.toString()}` : ""
+  const res = await fetch(`${API_BASE_URL}/storage-plans/buyers${queryString}`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+  const data = await handleResponse<StoragePlanBuyerListResult>(
+    res,
+    "Failed to retrieve storage plan buyers."
+  )
+  return {
+    buyers: Array.isArray(data?.buyers) ? data.buyers : [],
+    pagination: data?.pagination ?? EMPTY_PAGINATION,
+    counts: data?.counts ?? EMPTY_BUYER_COUNTS,
+  }
+}
+
+export async function updateStoragePlanBuyerOrderApi(
+  token: string,
+  id: number,
+  payload: UpdateStoragePlanBuyerPayload
+): Promise<StoragePlanBuyerOrder> {
+  const res = await fetch(`${API_BASE_URL}/storage-plans/buyers/${id}`, {
+    method: "PATCH",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  })
+  return await handleResponse<StoragePlanBuyerOrder>(
+    res,
+    "Failed to update storage plan order."
+  )
+}
+
 export async function fetchCapacityUnitsApi(token: string): Promise<CapacityUnit[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/storage-plans/units`, {
@@ -127,9 +187,6 @@ export async function fetchCapacityUnitsApi(token: string): Promise<CapacityUnit
   }
 }
 
-/**
- * Fetch single storage plan by ID
- */
 export async function fetchStoragePlanByIdApi(
   token: string,
   id: number
@@ -153,9 +210,6 @@ export async function fetchStoragePlanByIdApi(
   }
 }
 
-/**
- * Create a new storage plan
- */
 export async function createStoragePlanApi(
   token: string,
   payload: CreateStoragePlanPayload
@@ -168,9 +222,6 @@ export async function createStoragePlanApi(
   return await handleResponse<StoragePlan>(res, "Failed to create storage plan.")
 }
 
-/**
- * Update an existing storage plan
- */
 export async function updateStoragePlanApi(
   token: string,
   id: number,
@@ -184,9 +235,6 @@ export async function updateStoragePlanApi(
   return await handleResponse<StoragePlan>(res, "Failed to update storage plan.")
 }
 
-/**
- * Delete a storage plan
- */
 export async function deleteStoragePlanApi(
   token: string,
   id: number
@@ -199,9 +247,6 @@ export async function deleteStoragePlanApi(
   return true
 }
 
-/**
- * Toggle storage plan active/inactive status
- */
 export async function toggleStoragePlanStatusApi(
   token: string,
   id: number,

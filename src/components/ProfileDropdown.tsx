@@ -3,6 +3,7 @@ import { useNavigate } from "react-router"
 import { useAppDispatch, useAppSelector } from "@/store/store"
 import { logout } from "@/store/authSlice"
 import { getFullImageUrl } from "@/config/api"
+import { unsubscribeSaasWebPush } from "@/services/webPushService"
 import {
   User,
   LogOut,
@@ -17,7 +18,7 @@ export function ProfileDropdown() {
 
   const navigate = useNavigate()
   const dispatch = useAppDispatch()
-  const { profile, user } = useAppSelector((state) => state.auth)
+  const { profile, user, token } = useAppSelector((state) => state.auth)
 
   const avatarUrl = getFullImageUrl(profile?.profile_image ?? user?.profile_image)
   const firstName = profile?.first_name || user?.first_name || ""
@@ -65,6 +66,7 @@ export function ProfileDropdown() {
 
   const handleLogout = () => {
     setIsOpen(false)
+    unsubscribeSaasWebPush(token).catch(() => {})
     dispatch(logout())
     navigate("/login", { replace: true })
   }

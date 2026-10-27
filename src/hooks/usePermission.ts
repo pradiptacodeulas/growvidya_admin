@@ -101,6 +101,7 @@ const ROUTE_PRIORITY: Array<{ path: string; modules: string | string[] }> = [
   { path: "/storage-plans", modules: "storage_plans" },
   { path: "/coupons", modules: "coupons" },
   { path: "/bank-accounts", modules: "bank_accounts" },
+  { path: "/support-tickets", modules: "support_tickets" },
   { path: "/roles", modules: "roles" },
   { path: "/users", modules: "sub_admins" },
   { path: "/settings/payment-gateway", modules: "settings" },

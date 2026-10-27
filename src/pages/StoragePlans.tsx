@@ -212,7 +212,7 @@ export default function StoragePlans() {
   const hasActiveFilters = Boolean(searchQuery) || statusFilter !== "all"
 
   return (
-    <div className="p-4 sm:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
