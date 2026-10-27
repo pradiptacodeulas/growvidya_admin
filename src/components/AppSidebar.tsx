@@ -90,13 +90,13 @@ export function AppSidebar() {
   const canViewStoragePlans = can("storage_plans", "can_view")
   const canViewStorageBuyers = can("storage_buyers", "can_view")
   const canViewPaymentGateway = can("payment_gateway", "can_view")
-  const canViewEmailSettings = can("email_settings", "can_view")
+  const canViewEmailDelivery = can("email_delivery", "can_view") || can("email_settings", "can_view")
 
   const canViewAnySubscriptionSubItem = canViewSubscriptions || canViewPackages
   const canViewAnyMachineSubItem = canViewAttendanceMachines || canViewMachinesBuyers
   const canViewAnyRfidSubItem = canViewRfidCards || canViewRfidBuyers
   const canViewAnyStorageSubItem = canViewStoragePlans || canViewStorageBuyers
-  const canViewAnySettingsSubItem = canViewPaymentGateway || canViewEmailSettings
+  const canViewAnySettingsSubItem = canViewPaymentGateway || canViewEmailDelivery
 
   const visibleNavItems = navItems.filter((item) => can(item.moduleKey, "can_view"))
 
@@ -164,9 +164,10 @@ export function AppSidebar() {
   const isStoragePlanParentActive = !isStoragePlanOpen && isStoragePlanRoute
 
   const isPaymentGatewayActive =
-    location.pathname === "/settings" ||
-    location.pathname.startsWith("/settings/payment-gateway")
-  const isEmailSettingsActive =
+    location.pathname === "/settings/payment-gateway" ||
+    (location.pathname === "/settings" && canViewPaymentGateway)
+  const isEmailDeliveryActive =
+    location.pathname.startsWith("/settings/email-delivery") ||
     location.pathname.startsWith("/settings/email") ||
     location.pathname.startsWith("/settings/smtp")
   const isSettingsParentActive = !isSettingsOpen && isSettingsRoute
@@ -513,15 +514,15 @@ export function AppSidebar() {
                         </SidebarMenuSubItem>
                       )}
 
-                      {canViewEmailSettings && (
+                      {canViewEmailDelivery && (
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
-                            isActive={isEmailSettingsActive}
+                            isActive={isEmailDeliveryActive}
                             className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
-                            render={<Link to="/settings/email" />}
+                            render={<Link to="/settings/email-delivery" />}
                           >
                             <Mail className="size-3.5 shrink-0 text-primary" />
-                            <span>Email & SMTP</span>
+                            <span>Email Delivery</span>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )}

@@ -54,7 +54,8 @@ import RolesPermissions from "@/pages/RolesPermissions"
 import SubAdmins from "@/pages/SubAdmins"
 import SupportTickets from "@/pages/SupportTickets"
 import SupportTicketDetails from "@/pages/SupportTicketDetails"
-import Settings from "@/pages/Settings"
+import PaymentGatewaySettings from "@/pages/PaymentGatewaySettings"
+import EmailDeliverySettings from "@/pages/EmailDeliverySettings"
 import Profile from "@/pages/Profile"
 import EditProfile from "@/pages/EditProfile"
 import { Toaster } from "@/components/ui/sonner"
@@ -92,6 +93,24 @@ function DefaultRouteRedirect() {
         <Loader2 className="size-7 animate-spin text-primary" />
       </div>
     )
+  }
+  return <Navigate to={getFirstAccessibleRoute()} replace />
+}
+
+function SettingsRedirect() {
+  const { can, getFirstAccessibleRoute, isLoadingPermissions } = usePermission()
+  if (isLoadingPermissions) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="size-7 animate-spin text-primary" />
+      </div>
+    )
+  }
+  if (can("payment_gateway", "can_view")) {
+    return <Navigate to="/settings/payment-gateway" replace />
+  }
+  if (can("email_delivery", "can_view") || can("email_settings", "can_view")) {
+    return <Navigate to="/settings/email-delivery" replace />
   }
   return <Navigate to={getFirstAccessibleRoute()} replace />
 }
@@ -253,10 +272,11 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
       case "/settings":
       case "/settings/payment-gateway":
         return "Settings — Payment Gateway"
+      case "/settings/email-delivery":
       case "/settings/email":
       case "/settings/smtp":
       case "/settings/email-smtp":
-        return "Settings — Email & SMTP"
+        return "Settings — Email Delivery"
       default:
         return "Dashboard"
     }
@@ -691,45 +711,26 @@ function AppRoutes() {
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/profile/edit" element={<EditProfile />} />
 
-                <Route path="/settings"
-                  element={
-                    <RoutePermissionGuard module="settings" action="can_view">
-                      <Settings />
-                    </RoutePermissionGuard>
-                  }
-                />
+                <Route path="/settings" element={<SettingsRedirect />} />
                 <Route
                   path="/settings/payment-gateway"
                   element={
                     <RoutePermissionGuard module="payment_gateway" action="can_view">
-                      <Settings />
+                      <PaymentGatewaySettings />
                     </RoutePermissionGuard>
                   }
                 />
                 <Route
-                  path="/settings/email"
+                  path="/settings/email-delivery"
                   element={
-                    <RoutePermissionGuard module="email_settings" action="can_view">
-                      <Settings />
+                    <RoutePermissionGuard module={["email_delivery", "email_settings"]} action="can_view">
+                      <EmailDeliverySettings />
                     </RoutePermissionGuard>
                   }
                 />
-                <Route
-                  path="/settings/smtp"
-                  element={
-                    <RoutePermissionGuard module="settings" action="can_view">
-                      <Settings />
-                    </RoutePermissionGuard>
-                  }
-                />
-                <Route
-                  path="/settings/email-smtp"
-                  element={
-                    <RoutePermissionGuard module="settings" action="can_view">
-                      <Settings />
-                    </RoutePermissionGuard>
-                  }
-                />
+                <Route path="/settings/email" element={<Navigate to="/settings/email-delivery" replace />} />
+                <Route path="/settings/smtp" element={<Navigate to="/settings/email-delivery" replace />} />
+                <Route path="/settings/email-smtp" element={<Navigate to="/settings/email-delivery" replace />} />
                 <Route path="*" element={<DefaultRouteRedirect />} />
               </Routes>
             </DashboardLayout>

@@ -13,6 +13,7 @@ export type PermissionAction =
   | "create"
   | "add"
   | "edit"
+  | "update"
   | "delete"
   | "manage"
   | "approve"
@@ -31,6 +32,7 @@ export function normalizeAction(action: PermissionAction = "can_view"): keyof Pi
       return "can_add"
     case "can_edit":
     case "edit":
+    case "update":
       return "can_edit"
     case "can_delete":
     case "delete":
@@ -58,7 +60,7 @@ export function checkUserPermission(
     return false
   }
 
-  // Support dot notation like 'coupons.create' or 'roles.view' when passed as single string
+  // Support dot notation like 'coupons.create', 'roles.view', 'payment_gateway.view', 'payment_gateway.update'
   if (typeof moduleOrPermission === "string" && moduleOrPermission.includes(".")) {
     const [modPart, actPart] = moduleOrPermission.split(".")
     return checkUserPermission(role, permissions, modPart, (actPart as PermissionAction) || "can_view")
@@ -68,7 +70,12 @@ export function checkUserPermission(
   const actions = Array.isArray(action) ? action : [action]
 
   for (const modKey of moduleKeys) {
-    const perm = permissions.find((p) => p.module_key === modKey)
+    const perm = permissions.find(
+      (p) =>
+        p.module_key === modKey ||
+        (modKey === "email_delivery" && p.module_key === "email_settings") ||
+        (modKey === "email_settings" && p.module_key === "email_delivery")
+    )
     if (!perm) continue
 
     for (const act of actions) {
@@ -80,6 +87,15 @@ export function checkUserPermission(
           Number(perm.can_edit) === 1 ||
           Number(perm.can_delete) === 1 ||
           Number(perm.can_manage) === 1
+        ) {
+          return true
+        }
+      } else if (col === "can_edit") {
+        // Can edit or update if can_edit = 1, can_manage = 1, or can_add = 1
+        if (
+          Number(perm.can_edit) === 1 ||
+          Number(perm.can_manage) === 1 ||
+          Number(perm.can_add) === 1
         ) {
           return true
         }
@@ -104,7 +120,8 @@ const ROUTE_PRIORITY: Array<{ path: string; modules: string | string[] }> = [
   { path: "/support-tickets", modules: "support_tickets" },
   { path: "/roles", modules: "roles" },
   { path: "/users", modules: "sub_admins" },
-  { path: "/settings/payment-gateway", modules: "settings" },
+  { path: "/settings/payment-gateway", modules: "payment_gateway" },
+  { path: "/settings/email-delivery", modules: ["email_delivery", "email_settings"] },
 ]
 
 export function resolveFirstAccessibleRoute(
