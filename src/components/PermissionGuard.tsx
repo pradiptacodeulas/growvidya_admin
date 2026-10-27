@@ -24,8 +24,9 @@ export function PermissionGuard({
   children,
 }: PermissionGuardProps) {
   const { hasPermission } = usePermission()
-
+  
   const target = permission || module
+  
   if (!target) {
     return <>{children}</>
   }

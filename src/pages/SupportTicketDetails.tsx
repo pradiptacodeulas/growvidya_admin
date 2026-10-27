@@ -82,6 +82,7 @@ export default function SupportTicketDetails() {
       setLoading(true)
       const data = await fetchSaasSupportTicketByIdApi(token, id)
       setTicket(data)
+      
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load ticket details")
     } finally {
@@ -576,22 +577,22 @@ export default function SupportTicketDetails() {
                 <Label className="text-xs text-muted-foreground">Assigned Support Agent</Label>
                 <Select
                   value={
-                    ticket.assigned_to_saas_admin_id
-                      ? String(ticket.assigned_to_saas_admin_id)
-                      : "unassigned"
+                    ticket.assigned_admin_name
+                      ? String(ticket.assigned_admin_name)
+                      : "Select Agent"
                   }
                   disabled={!canReplyOrManage || updatingMeta}
                   onValueChange={(val) => {
                     handleMetaUpdate({
-                      assigned_to_saas_admin_id: val === "unassigned" ? null : Number(val),
+                      assigned_to_saas_admin_id: val === "Select Agent" ? null : Number(val),
                     })
                   }}
                 >
                   <SelectTrigger className="w-full h-9 text-sm">
-                    <SelectValue placeholder="Unassigned" />
+                    <SelectValue placeholder="Select Agent" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    <SelectItem value="Select Agent">Select Agent</SelectItem>
                     {assignees.map((admin) => (
                       <SelectItem key={admin.id} value={String(admin.id)}>
                         {admin.full_name || admin.email} ({admin.role_name})

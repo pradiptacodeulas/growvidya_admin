@@ -119,6 +119,7 @@ export default function RolesPermissions() {
       ])
       setRoles(rolesData || [])
       setModules(modulesData || [])
+      
     } catch (err: any) {
       console.error("Failed to fetch roles/modules:", err)
       toast.error(err?.message || "Failed to load roles and permissions.")
@@ -716,9 +717,6 @@ export default function RolesPermissions() {
               <Shield className="size-5 text-primary" />
               {editingRole ? `Edit Role: ${editingRole.role_name}` : "Create New Role"}
             </DialogTitle>
-            <DialogDescription>
-              Configure role details and assign module-level permissions (View, Create/Add, Edit, Delete, Manage/Approve).
-            </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -794,9 +792,7 @@ export default function RolesPermissions() {
                       {permissionSummary.selectedActions} / {permissionSummary.totalPossibleActions} Permissions Selected ({permissionSummary.activeModules} / {permissionSummary.totalModules} Modules)
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Check the actions this role is allowed to perform on each module. Enabling Create, Edit, Delete, or Manage automatically enables View.
-                  </p>
+                 
                 </div>
                 {!editingRole?.is_system && (
                   <div className="flex items-center gap-2">
@@ -860,6 +856,7 @@ export default function RolesPermissions() {
                     </thead>
                     <tbody className="divide-y divide-border/60">
                       {permissions.map((perm) => {
+                        
                         const allChecked = Boolean(
                           perm.can_view &&
                             perm.can_add &&

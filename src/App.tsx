@@ -114,9 +114,9 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     if (!isAuthenticated || !token) return
     const perm = getNotificationPermission()
     if (perm === "granted") {
-      subscribeSaasWebPush(token, false).catch(() => {})
+      subscribeSaasWebPush(token, false).catch(() => { })
     } else {
-      registerSaasServiceWorker().catch(() => {})
+      registerSaasServiceWorker().catch(() => { })
     }
 
     if ("serviceWorker" in navigator) {
@@ -129,9 +129,9 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
             description: payload?.body || "",
             action: targetUrl
               ? {
-                  label: "View",
-                  onClick: () => navigate(targetUrl),
-                }
+                label: "View",
+                onClick: () => navigate(targetUrl),
+              }
               : undefined,
           })
           window.dispatchEvent(
@@ -352,7 +352,7 @@ function AppRoutes() {
                 <Route
                   path="/attendance-machines/buyers"
                   element={
-                    <RoutePermissionGuard module="attendance_machines" action="can_view">
+                    <RoutePermissionGuard module="machines_buyers" action="can_view">
                       <AttendanceMachineBuyers />
                     </RoutePermissionGuard>
                   }
@@ -400,7 +400,7 @@ function AppRoutes() {
                 <Route
                   path="/rfid-cards/buyers"
                   element={
-                    <RoutePermissionGuard module="rfid_cards" action="can_view">
+                    <RoutePermissionGuard module="rfid_buyers" action="can_view">
                       <RfidCardBuyers />
                     </RoutePermissionGuard>
                   }
@@ -440,7 +440,7 @@ function AppRoutes() {
                 <Route
                   path="/storage-plans/buyers"
                   element={
-                    <RoutePermissionGuard module="storage_plans" action="can_view">
+                    <RoutePermissionGuard module="storage_buyers" action="can_view">
                       <StoragePlanBuyers />
                     </RoutePermissionGuard>
                   }
@@ -690,8 +690,8 @@ function AppRoutes() {
                 />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/profile/edit" element={<EditProfile />} />
-                <Route
-                  path="/settings"
+
+                <Route path="/settings"
                   element={
                     <RoutePermissionGuard module="settings" action="can_view">
                       <Settings />
@@ -701,7 +701,7 @@ function AppRoutes() {
                 <Route
                   path="/settings/payment-gateway"
                   element={
-                    <RoutePermissionGuard module="settings" action="can_view">
+                    <RoutePermissionGuard module="payment_gateway" action="can_view">
                       <Settings />
                     </RoutePermissionGuard>
                   }
@@ -709,7 +709,7 @@ function AppRoutes() {
                 <Route
                   path="/settings/email"
                   element={
-                    <RoutePermissionGuard module="settings" action="can_view">
+                    <RoutePermissionGuard module="email_settings" action="can_view">
                       <Settings />
                     </RoutePermissionGuard>
                   }
