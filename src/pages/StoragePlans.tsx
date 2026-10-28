@@ -220,9 +220,6 @@ export default function StoragePlans() {
             <HardDrive className="size-6 text-primary" />
             Storage Plans
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage additional cloud storage packages and capacity quotas for schools.
-          </p>
         </div>
 
         <div className="flex items-center gap-2">

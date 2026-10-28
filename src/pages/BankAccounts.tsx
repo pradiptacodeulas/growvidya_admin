@@ -170,9 +170,6 @@ export default function BankAccounts() {
               <h1 className="text-2xl font-bold tracking-tight text-foreground">
                 Bank Account Master
               </h1>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                Manage company collection bank accounts, UPI identifiers, and remittance instructions.
-              </p>
             </div>
           </div>
         </div>

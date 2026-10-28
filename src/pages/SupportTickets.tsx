@@ -272,9 +272,7 @@ export default function SupportTickets() {
             <Headset className="size-6 text-primary" />
             Help &amp; Support Tickets
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage support tickets raised by schools, assign sub-admins, and respond to inquiries.
-          </p>
+          
         </div>
         <div className="flex items-center gap-2">
           <Button

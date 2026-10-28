@@ -180,9 +180,6 @@ export default function CreateRfidCard() {
             <Radio className="size-6 text-primary" />
             Add New RFID Card & Tag
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Register smart ID cards, proximity tags, keyfobs, and wristbands for school orders.
-          </p>
         </div>
       </div>
 
@@ -195,9 +192,6 @@ export default function CreateRfidCard() {
               <Tag className="size-4 text-primary" />
               <span>Card Identification & Type</span>
             </CardTitle>
-            <CardDescription className="text-xs">
-              Model name, unique SKU identifier, and physical form factor.
-            </CardDescription>
           </CardHeader>
           <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Card Name */}
@@ -212,9 +206,6 @@ export default function CreateRfidCard() {
                 onChange={(e) => setCardName(e.target.value)}
                 required
               />
-              <p className="text-[11px] text-muted-foreground">
-                Public display name seen by school administrators during order placement.
-              </p>
             </div>
 
             {/* Card Code / SKU */}
@@ -229,9 +220,6 @@ export default function CreateRfidCard() {
                 onChange={(e) => setCardCode(e.target.value)}
                 required
               />
-              <p className="text-[11px] text-muted-foreground">
-                Unique inventory SKU identifier.
-              </p>
             </div>
 
             {/* Card Type (Shadcn UI Select) */}
@@ -284,9 +272,6 @@ export default function CreateRfidCard() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground">
-                Active cards are instantly selectable for institutional identity badge issuance.
-              </p>
             </div>
           </CardContent>
         </Card>
@@ -324,9 +309,6 @@ export default function CreateRfidCard() {
                   ₹
                 </span>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Base price per card or tag charged to schools.
-              </p>
             </div>
 
             {/* Minimum Order Qty */}
@@ -343,9 +325,7 @@ export default function CreateRfidCard() {
                 value={minOrderQty}
                 onChange={(e) => setMinOrderQty(e.target.value)}
               />
-              <p className="text-[11px] text-muted-foreground">
-                Minimum batch quantity schools must order per purchase request.
-              </p>
+              
             </div>
           </CardContent>
         </Card>

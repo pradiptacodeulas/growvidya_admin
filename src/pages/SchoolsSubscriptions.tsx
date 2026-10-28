@@ -308,9 +308,6 @@ export default function SchoolsSubscriptions() {
             <ShieldCheck className="size-7 text-primary" />
             School Subscriptions & Plan Approvals
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Review and approve school plan selections. When a user selects a plan, it stays pending until approved by the Super Admin.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5">

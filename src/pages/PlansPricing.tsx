@@ -270,9 +270,6 @@ export default function PlansPricing() {
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
                 Plans & Packages
               </h1>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                Manage subscription packages, student & teacher quotas, and child add-on modules.
-              </p>
             </div>
           </div>
         </div>

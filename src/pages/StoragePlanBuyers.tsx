@@ -215,9 +215,7 @@ export default function StoragePlanBuyers() {
             <HardDrive className="size-6 text-primary" />
             Storage Plan Buyers
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            View all schools and users who purchased additional storage plans, along with their base subscription plan.
-          </p>
+          
         </div>
 
         <div className="flex items-center gap-2.5">

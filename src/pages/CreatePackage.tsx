@@ -216,9 +216,6 @@ export default function CreatePackage() {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
             Create Plan
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Configure a new subscription plan with dynamic billing cycles, free trial days, and features.
-          </p>
         </div>
       </div>
 
@@ -293,9 +290,6 @@ export default function CreatePackage() {
                   className="h-9 text-xs"
                   required
                 />
-                <span className="text-[10px] text-muted-foreground">
-                  Enter 0 for complimentary plans.
-                </span>
               </div>
 
               {/* Billing Cycle - Exactly 2 options: Monthly and Annually */}
@@ -328,9 +322,6 @@ export default function CreatePackage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <span className="text-[10px] text-muted-foreground">
-                  Select either Monthly or Annually billing schedule.
-                </span>
               </div>
 
               {/* Free Trial Days - Dynamic Field */}
@@ -358,9 +349,6 @@ export default function CreatePackage() {
                   />
                   <Clock className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60 pointer-events-none" />
                 </div>
-                <span className="text-[10px] text-muted-foreground">
-                  Number of free trial days (e.g., 0 for no trial, 7, 14, 30 days).
-                </span>
               </div>
 
               {/* Student Capacity Limit */}
@@ -380,9 +368,6 @@ export default function CreatePackage() {
                   disabled={isSubmitting}
                   className="h-9 text-xs"
                 />
-                <span className="text-[10px] text-muted-foreground">
-                  Enter 0 for unlimited students capacity.
-                </span>
               </div>
             </div>
 

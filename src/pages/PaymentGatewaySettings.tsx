@@ -320,9 +320,7 @@ export default function PaymentGatewaySettings() {
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
                 Razorpay Payment Gateway
               </h1>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Configure dynamic Razorpay payment credentials for school subscriptions and online transactions.
-              </p>
+             
             </div>
           </div>
         </div>
@@ -452,9 +450,6 @@ export default function PaymentGatewaySettings() {
                   </Badge>
                 )}
               </CardTitle>
-              <CardDescription className="mt-1 text-xs sm:text-sm">
-                Razorpay authentication, order creation, and payment verification dynamically use these credentials without requiring server restart.
-              </CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -633,26 +628,7 @@ export default function PaymentGatewaySettings() {
           </Table>
         </div>
 
-        {credentials && (
-          <CardContent className="border-t bg-muted/15 px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-              <span>
-                The secret key is encrypted at rest with AES-256 and never exposed in API responses or logs.
-              </span>
-            </div>
-            {canUpdateSettings && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleToggleStatus}
-                className="h-7 text-xs cursor-pointer self-start sm:self-auto"
-              >
-                {credentials.status === 1 ? "Disable Gateway" : "Enable Gateway"}
-              </Button>
-            )}
-          </CardContent>
-        )}
+        
       </Card>
 
       {/* Add / Edit Razorpay Credentials Dialog */}

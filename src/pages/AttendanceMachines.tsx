@@ -225,9 +225,7 @@ export default function AttendanceMachines() {
             <Cpu className="size-6 text-primary" />
             Attendance Machines
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage biometric, facial, and RFID attendance devices and integrations.
-          </p>
+          
         </div>
 
         <div className="flex items-center gap-2">

@@ -433,9 +433,7 @@ export default function EmailDeliverySettings() {
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
                 Email Delivery Settings (Mailjet & SMTP)
               </h1>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Configure Mailjet API and SMTP servers dynamically, and select one as the active Default mailer.
-              </p>
+              
             </div>
           </div>
         </div>
@@ -599,9 +597,6 @@ export default function EmailDeliverySettings() {
                         </Badge>
                       )}
                     </div>
-                    <CardDescription className="text-xs mt-0.5">
-                      High-deliverability transactional email delivery via Mailjet v3.1 REST API.
-                    </CardDescription>
                   </div>
                 </div>
               </div>
@@ -817,9 +812,6 @@ export default function EmailDeliverySettings() {
                         </Badge>
                       )}
                     </div>
-                    <CardDescription className="text-xs mt-0.5">
-                      Standard SMTP relay (Gmail, Zoho, Hostinger, Amazon SES, or custom SMTP).
-                    </CardDescription>
                   </div>
                 </div>
               </div>
@@ -1012,11 +1004,7 @@ export default function EmailDeliverySettings() {
                 ? `Configure ${provider === "mailjet" ? "Mailjet API" : "SMTP Server"}`
                 : `Edit ${provider === "mailjet" ? "Mailjet API" : "SMTP Server"} Credentials`}
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {provider === "mailjet"
-                ? "Enter your Mailjet API Key, Secret Key, and verified sender details. The Secret Key is encrypted with AES-256."
-                : "Enter your SMTP server host, port, encryption, and login credentials. Your SMTP password is encrypted with AES-256."}
-            </DialogDescription>
+           
           </DialogHeader>
 
           <form onSubmit={handleEmailSaveSubmit} className="space-y-4 py-1">

@@ -323,9 +323,7 @@ export default function Overview() {
               Welcome back{adminUser?.first_name ? `, ${adminUser.first_name}` : ""}
             </span>
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Real-time analytics across schools, subscriptions, add-on orders, revenue, and support tickets.
-          </p>
+      
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
@@ -339,16 +337,7 @@ export default function Overview() {
             <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
             <span>Refresh</span>
           </Button>
-          {canViewSubscriptions && (
-            <Button
-              size="sm"
-              onClick={() => navigate("/subscriptions")}
-              className="h-9 px-3.5 gap-1.5 cursor-pointer shadow-xs text-xs font-semibold"
-            >
-              <ShieldCheck className="size-4" />
-              <span>Manage Subscriptions</span>
-            </Button>
-          )}
+          
         </div>
       </div>
 

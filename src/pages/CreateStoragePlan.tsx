@@ -159,9 +159,6 @@ export default function CreateStoragePlan() {
             <HardDrive className="size-6 text-primary" />
             Add New Storage Plan
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Configure cloud storage tiers and quotas for school media, documents, and backups.
-          </p>
         </div>
       </div>
 
@@ -174,9 +171,6 @@ export default function CreateStoragePlan() {
               <Database className="size-4 text-primary" />
               <span>Plan Information & Capacity</span>
             </CardTitle>
-            <CardDescription className="text-xs">
-              Plan title, cloud volume size, and capacity unit.
-            </CardDescription>
           </CardHeader>
           <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Plan Name */}
@@ -191,9 +185,6 @@ export default function CreateStoragePlan() {
                 onChange={(e) => setPlanName(e.target.value)}
                 required
               />
-              <p className="text-[11px] text-muted-foreground">
-                Public display name shown in subscription plans and invoice summaries.
-              </p>
             </div>
 
             {/* Storage Capacity */}
@@ -211,9 +202,6 @@ export default function CreateStoragePlan() {
                 onChange={(e) => setStorageCapacity(e.target.value)}
                 required
               />
-              <p className="text-[11px] text-muted-foreground">
-                Numeric quantity of storage allocated to this plan.
-              </p>
             </div>
 
             {/* Capacity Unit (Shadcn Select) */}
@@ -241,9 +229,6 @@ export default function CreateStoragePlan() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground">
-                Standard unit of measurement (MB, GB, TB).
-              </p>
             </div>
 
             {/* Status (Shadcn Select) */}
@@ -270,9 +255,6 @@ export default function CreateStoragePlan() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground">
-                Active plans are immediately visible to schools subscribing to add-on storage.
-              </p>
             </div>
           </CardContent>
         </Card>
@@ -310,9 +292,6 @@ export default function CreateStoragePlan() {
                   required
                 />
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Recurring charge per month for this storage tier.
-              </p>
             </div>
 
             {/* Annual Price */}
@@ -336,9 +315,6 @@ export default function CreateStoragePlan() {
                   required
                 />
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Yearly discounted billing charge for this tier.
-              </p>
             </div>
           </CardContent>
         </Card>
