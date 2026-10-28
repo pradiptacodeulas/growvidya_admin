@@ -202,9 +202,7 @@ export default function CreateCoupon() {
               <Ticket className="h-6 w-6 text-primary" />
               <span>Create Promotional Coupon</span>
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Set up promotional codes, discount percentage or fixed value, and redemption limits.
-            </p>
+            
           </div>
         </div>
 
@@ -250,9 +248,6 @@ export default function CreateCoupon() {
                   <Sparkles className="h-4 w-4 text-primary" />
                   <span>Coupon Code & Discount Configuration</span>
                 </CardTitle>
-                <CardDescription className="text-xs">
-                  Primary identifier and discount calculation type.
-                </CardDescription>
               </CardHeader>
               <CardContent className="p-5 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -272,9 +267,6 @@ export default function CreateCoupon() {
                       />
                       <Ticket className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Schools enter this unique promo code during subscription checkout.
-                    </p>
                   </div>
 
                   {/* Discount Type */}
@@ -330,11 +322,7 @@ export default function CreateCoupon() {
                         <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       )}
                     </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      {discountType === "percentage"
-                        ? "Percentage off total order (1% to 100%)."
-                        : "Direct rupee deduction from invoice total."}
-                    </p>
+                    
                   </div>
                 </div>
 
@@ -362,9 +350,6 @@ export default function CreateCoupon() {
                   <Layers className="h-4 w-4 text-primary" />
                   <span>Order Limits & Safeguards</span>
                 </CardTitle>
-                <CardDescription className="text-xs">
-                  Set minimum purchase amount and maximum discount ceilings.
-                </CardDescription>
               </CardHeader>
               <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Min Order Amount */}
@@ -385,9 +370,6 @@ export default function CreateCoupon() {
                     />
                     <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Order must be greater than or equal to this amount to qualify.
-                  </p>
                 </div>
 
                 {/* Max Discount Amount */}
@@ -411,9 +393,6 @@ export default function CreateCoupon() {
                     />
                     <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Upper boundary ceiling on percentage deductions.
-                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -425,9 +404,7 @@ export default function CreateCoupon() {
                   <Calendar className="h-4 w-4 text-primary" />
                   <span>Validity Period & Usage Limits</span>
                 </CardTitle>
-                <CardDescription className="text-xs">
-                  Schedule active date window and configure total & per-user redemption limits.
-                </CardDescription>
+                
               </CardHeader>
               <CardContent className="p-5 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -442,9 +419,6 @@ export default function CreateCoupon() {
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
                     />
-                    <p className="text-[11px] text-muted-foreground">
-                      Coupon cannot be redeemed prior to this date.
-                    </p>
                   </div>
 
                   {/* End Date */}
@@ -458,9 +432,6 @@ export default function CreateCoupon() {
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
                     />
-                    <p className="text-[11px] text-muted-foreground">
-                      Coupon expires automatically after this date.
-                    </p>
                   </div>
 
                   {/* Max Uses (Total Global Limit) */}
@@ -477,9 +448,6 @@ export default function CreateCoupon() {
                       value={maxUses}
                       onChange={(e) => setMaxUses(e.target.value)}
                     />
-                    <p className="text-[11px] text-muted-foreground">
-                      Total redemptions allowed across all schools combined.
-                    </p>
                   </div>
 
                   {/* Max Uses Per User (Strict Integer Count) */}
@@ -497,9 +465,6 @@ export default function CreateCoupon() {
                       onChange={(e) => setMaxUsesPerUser(e.target.value)}
                       required
                     />
-                    <p className="text-[11px] text-muted-foreground">
-                      How many times a single school/user can use this coupon (required integer).
-                    </p>
                   </div>
 
                   {/* Initial Status */}
@@ -528,9 +493,6 @@ export default function CreateCoupon() {
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-[11px] text-muted-foreground">
-                      Set whether coupon is active upon creation or saved as draft.
-                    </p>
                   </div>
                 </div>
               </CardContent>

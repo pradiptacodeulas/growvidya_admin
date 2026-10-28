@@ -410,9 +410,6 @@ export default function RolesPermissions() {
             <Shield className="size-6 text-primary shrink-0" />
             <span>Roles & Permissions</span>
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Define custom roles and granular module permissions for sub-admin users.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">

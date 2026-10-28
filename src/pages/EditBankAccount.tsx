@@ -265,9 +265,6 @@ export default function EditBankAccount() {
               <Landmark className="h-6 w-6 text-primary" />
               <span>Edit Bank Account</span>
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Update credentials, branch information, or instructions for this bank account.
-            </p>
           </div>
         </div>
 
@@ -310,9 +307,6 @@ export default function EditBankAccount() {
               <Building2 className="h-4 w-4 text-primary" />
               <span>Account Ownership & Identification</span>
             </CardTitle>
-            <CardDescription className="text-xs">
-              Basic identification details and legal beneficiary name.
-            </CardDescription>
           </CardHeader>
           <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -375,9 +369,6 @@ export default function EditBankAccount() {
               <Landmark className="h-4 w-4 text-primary" />
               <span>Banking & Clearing Information</span>
             </CardTitle>
-            <CardDescription className="text-xs">
-              Bank credentials used by schools to initiate wire transfers.
-            </CardDescription>
           </CardHeader>
           <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -554,9 +545,6 @@ export default function EditBankAccount() {
               <FileText className="h-4 w-4 text-primary" />
               <span>Remittance Instructions & Settings</span>
             </CardTitle>
-            <CardDescription className="text-xs">
-              Special remarks presented to schools during bank transfer payment.
-            </CardDescription>
           </CardHeader>
           <CardContent className="p-5 space-y-4">
             <div className="space-y-1.5">

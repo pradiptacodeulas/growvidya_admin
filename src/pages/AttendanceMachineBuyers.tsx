@@ -234,9 +234,6 @@ export default function AttendanceMachineBuyers() {
             <Cpu className="size-6 text-primary" />
             Attendance Machine Buyers
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            View all schools and users who purchased attendance machines, along with their base subscription plan and device status.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5">

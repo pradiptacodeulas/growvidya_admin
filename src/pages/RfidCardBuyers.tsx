@@ -217,9 +217,6 @@ export default function RfidCardBuyers() {
             <Radio className="size-6 text-primary" />
             RFID Card Buyers
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            View all schools and users who ordered RFID cards, their current default plan, and shipment status.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5">

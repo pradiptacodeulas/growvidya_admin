@@ -170,9 +170,6 @@ export default function CreateBankAccount() {
               <Landmark className="h-6 w-6 text-primary" />
               <span>Add New Bank Account</span>
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Set up an official collection bank account and remittance instructions for schools.
-            </p>
           </div>
         </div>
 
@@ -232,9 +229,6 @@ export default function CreateBankAccount() {
                 onChange={handleInputChange}
                 required
               />
-              <p className="text-[11px] text-muted-foreground">
-                Internal label to identify this account across the system.
-              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -249,9 +243,6 @@ export default function CreateBankAccount() {
                 onChange={handleInputChange}
                 required
               />
-              <p className="text-[11px] text-muted-foreground">
-                Exact legal registered name for RTGS/NEFT/IMPS validation.
-              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -286,9 +277,6 @@ export default function CreateBankAccount() {
               <Landmark className="h-4 w-4 text-primary" />
               <span>Banking & Clearing Information</span>
             </CardTitle>
-            <CardDescription className="text-xs">
-              Bank credentials used by schools to initiate wire transfers.
-            </CardDescription>
           </CardHeader>
           <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -388,9 +376,7 @@ export default function CreateBankAccount() {
                 value={formData.upi_id || ""}
                 onChange={handleInputChange}
               />
-              <p className="text-[11px] text-muted-foreground">
-                Virtual Payment Address for UPI collection.
-              </p>
+              
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">
@@ -471,9 +457,7 @@ export default function CreateBankAccount() {
               <FileText className="h-4 w-4 text-primary" />
               <span>Remittance Instructions & Settings</span>
             </CardTitle>
-            <CardDescription className="text-xs">
-              Special remarks presented to schools during bank transfer payment.
-            </CardDescription>
+            
           </CardHeader>
           <CardContent className="p-5 space-y-4">
             <div className="space-y-1.5">

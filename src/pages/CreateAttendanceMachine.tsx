@@ -191,9 +191,6 @@ export default function CreateAttendanceMachine() {
             <Cpu className="size-6 text-primary" />
             Add New Attendance Machine
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Register a new biometric, facial, or RFID attendance device into the institutional catalog.
-          </p>
         </div>
       </div>
 
@@ -223,9 +220,6 @@ export default function CreateAttendanceMachine() {
                 onChange={(e) => setMachineName(e.target.value)}
                 required
               />
-              <p className="text-[11px] text-muted-foreground">
-                Public display title shown to institutional administrators and invoices.
-              </p>
             </div>
 
             {/* Model Number */}
@@ -240,9 +234,6 @@ export default function CreateAttendanceMachine() {
                 onChange={(e) => setModelNumber(e.target.value)}
                 required
               />
-              <p className="text-[11px] text-muted-foreground">
-                Must be a unique hardware identifier.
-              </p>
             </div>
 
             {/* Brand */}
@@ -283,9 +274,6 @@ export default function CreateAttendanceMachine() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground">
-                Select the primary verification mode supported by the terminal.
-              </p>
             </div>
 
             {/* Initial Status (Shadcn UI Select) */}
@@ -312,9 +300,6 @@ export default function CreateAttendanceMachine() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground">
-                Active devices are immediately available for school order assignment.
-              </p>
             </div>
           </CardContent>
         </Card>
@@ -352,9 +337,6 @@ export default function CreateAttendanceMachine() {
                   ₹
                 </span>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Base selling price charged per terminal unit.
-              </p>
             </div>
 
             {/* AMC Price */}
@@ -377,9 +359,6 @@ export default function CreateAttendanceMachine() {
                   ₹
                 </span>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Optional recurring yearly maintenance and cloud support fee.
-              </p>
             </div>
           </CardContent>
         </Card>
@@ -410,9 +389,6 @@ export default function CreateAttendanceMachine() {
                 value={userCapacity}
                 onChange={(e) => setUserCapacity(e.target.value)}
               />
-              <p className="text-[11px] text-muted-foreground">
-                Max fingerprint/facial enrollment capacity.
-              </p>
             </div>
 
             {/* Log Capacity */}
@@ -429,9 +405,6 @@ export default function CreateAttendanceMachine() {
                 value={logCapacity}
                 onChange={(e) => setLogCapacity(e.target.value)}
               />
-              <p className="text-[11px] text-muted-foreground">
-                Offline attendance records stored on local device EEPROM.
-              </p>
             </div>
 
             {/* Connectivity */}
@@ -492,9 +465,6 @@ export default function CreateAttendanceMachine() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground">
-                Live communication protocol with Growvidya API Server.
-              </p>
             </div>
           </CardContent>
         </Card>

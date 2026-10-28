@@ -217,9 +217,6 @@ export default function RfidCards() {
             <Radio className="size-6 text-primary" />
             RFID Cards & Tags
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage smart identity cards, keyfobs, wristbands, and frequencies for institutions.
-          </p>
         </div>
 
         <div className="flex items-center gap-2">

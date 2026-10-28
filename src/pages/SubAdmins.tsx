@@ -318,9 +318,7 @@ export default function SubAdmins() {
             <Users className="size-6 text-primary shrink-0" />
             <span>Users & Sub-Admins</span>
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Manage platform sub-admin users, assign roles, and control access status.
-          </p>
+         
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
@@ -677,11 +675,6 @@ export default function SubAdmins() {
               <UserPlus className="size-5 text-primary" />
               {editingUser ? "Edit Sub-Admin User" : "Add Sub-Admin User"}
             </DialogTitle>
-            <DialogDescription>
-              {editingUser
-                ? "Update profile details, assigned role, or reset password."
-                : "Create a new sub-admin account and assign a role."}
-            </DialogDescription>
           </DialogHeader>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
