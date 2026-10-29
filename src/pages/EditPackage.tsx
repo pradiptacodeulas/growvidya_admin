@@ -115,7 +115,6 @@ export default function EditPackage() {
   const [isLoading, setIsLoading] = useState(true)
   const [planName, setPlanName] = useState("")
   const [planCode, setPlanCode] = useState("")
-  const [planGroup, setPlanGroup] = useState("")
   const [tierRank, setTierRank] = useState<number | "">(1)
   const [originalPrice, setOriginalPrice] = useState("")
   const [discountPercent, setDiscountPercent] = useState("")
@@ -146,7 +145,6 @@ export default function EditPackage() {
       .then((pkg) => {
         setPlanName(pkg.plan_name || "")
         setPlanCode(pkg.plan_code || "")
-        setPlanGroup(pkg.plan_group || "")
         setTierRank(pkg.tier_rank !== undefined && pkg.tier_rank !== null ? Number(pkg.tier_rank) : 1)
         const sellNum = Number(pkg.price ?? 0)
         const origNum =
@@ -173,9 +171,11 @@ export default function EditPackage() {
             : ""
         )
         setIncludedStorageGb(
-          pkg.included_storage_gb !== undefined && pkg.included_storage_gb !== null
+          pkg.included_storage_gb !== undefined &&
+            pkg.included_storage_gb !== null &&
+            Number(pkg.included_storage_gb) > 0
             ? Number(pkg.included_storage_gb)
-            : 0
+            : ""
         )
         setIsPopular(Number(pkg.is_popular) === 1 ? 1 : 0)
         setStatus(pkg.status ?? 1)
@@ -199,25 +199,27 @@ export default function EditPackage() {
       })
   }, [token, id])
 
-  const effectiveGroupKey = useMemo(() => {
-    const manual = planGroup.trim().toLowerCase()
-    if (manual) return manual
-    return slugify(planName.replace(/\b(plan|package|monthly|quarterly|half_yearly|annual|trial)\b/gi, ""))
-  }, [planGroup, planName])
+  const effectiveBaseSlug = useMemo(() => {
+    return slugify(
+      planName.replace(/\b(plan|package|monthly|quarterly|half[\s_-]*yearly|annual|yearly|trial)\b/gi, "")
+    )
+  }, [planName])
 
   const matchingMonthlyPlan = useMemo(() => {
-    if (!effectiveGroupKey || CYCLE_MONTHS[billingCycle] <= 1) return null
+    if (CYCLE_MONTHS[billingCycle] <= 1) return null
+    const parsedRank = Number(tierRank)
     return (
       existingPackages.find((p) => {
         if (Number(p.id) === Number(id)) return false
         if (p.billing_cycle !== "monthly" || !(Number(p.price) > 0)) return false
-        const pkgGroup =
-          (p.plan_group || "").trim().toLowerCase() ||
-          slugify(p.plan_name.replace(/\b(plan|package|monthly|quarterly|half_yearly|annual|trial)\b/gi, ""))
-        return pkgGroup === effectiveGroupKey
+        const pkgBaseSlug = slugify(
+          p.plan_name.replace(/\b(plan|package|monthly|quarterly|half[\s_-]*yearly|annual|yearly|trial)\b/gi, "")
+        )
+        if (effectiveBaseSlug && pkgBaseSlug === effectiveBaseSlug) return true
+        return parsedRank >= 1 && Number(p.tier_rank) === parsedRank
       }) || null
     )
-  }, [existingPackages, effectiveGroupKey, billingCycle, id])
+  }, [existingPackages, effectiveBaseSlug, tierRank, billingCycle, id])
 
   const handleOriginalPriceChange = (val: string) => {
     setOriginalPrice(val)
@@ -343,7 +345,6 @@ export default function EditPackage() {
       await updatePackageApi(token, Number(id), {
         plan_name: planName.trim(),
         plan_code: planCode.trim(),
-        plan_group: planGroup.trim() || slugify(planName),
         tier_rank: parsedTierRank,
         price: parsedPrice,
         original_price:
@@ -475,24 +476,6 @@ export default function EditPackage() {
                     className="h-9 text-xs font-mono"
                     required
                   />
-                </div>
-
-                {/* Plan Group */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="plan_group" className="text-xs font-semibold">
-                    Tier Family Group
-                  </Label>
-                  <Input
-                    id="plan_group"
-                    placeholder="e.g. starter, growth, enterprise"
-                    value={planGroup}
-                    onChange={(e) => setPlanGroup(e.target.value)}
-                    disabled={isSubmitting}
-                    className="h-9 text-xs font-mono"
-                  />
-                  <span className="text-[10px] text-muted-foreground">
-                    Groups Monthly/Quarterly/Annual variants of the same tier together.
-                  </span>
                 </div>
 
                 {/* Tier Rank */}
@@ -749,21 +732,21 @@ export default function EditPackage() {
                   </span>
                 </div>
 
-                {/* Included Cloud Storage */}
+                {/* Included Cloud Storage (Optional) */}
                 <div className="space-y-1.5">
                   <Label htmlFor="included_storage_gb" className="text-xs font-semibold">
-                    Included Cloud Storage (GB)
+                    Included Cloud Storage (GB — Optional)
                   </Label>
                   <div className="relative">
                     <Input
                       id="included_storage_gb"
                       type="number"
-                      min="1"
-                      placeholder="5"
+                      min="0"
+                      placeholder="0 (Optional)"
                       value={includedStorageGb}
                       onChange={(e) =>
                         setIncludedStorageGb(
-                          e.target.value === "" ? "" : Math.max(1, Number(e.target.value))
+                          e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
                         )
                       }
                       disabled={isSubmitting}
@@ -772,7 +755,7 @@ export default function EditPackage() {
                     <HardDrive className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60 pointer-events-none" />
                   </div>
                   <span className="text-[10px] text-muted-foreground">
-                    Base cloud storage bundled with this plan.
+                    Optional base cloud storage bundled with this plan (leave blank or 0 if none).
                   </span>
                 </div>
 

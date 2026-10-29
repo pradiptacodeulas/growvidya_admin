@@ -614,7 +614,11 @@ export default function PlansPricing() {
                           </div>
                           <div className="text-[11px] text-muted-foreground flex items-center gap-1">
                             <HardDrive className="h-3 w-3 text-primary" />
-                            <span>{pkg.included_storage_gb ?? 0} GB Storage</span>
+                            <span>
+                              {(pkg.included_storage_gb ?? 0) > 0
+                                ? `${pkg.included_storage_gb} GB Storage`
+                                : "No Base Storage"}
+                            </span>
                           </div>
                         </div>
                       </TableCell>
@@ -859,7 +863,9 @@ export default function PlansPricing() {
                               Storage
                             </span>
                             <strong className="text-foreground font-semibold truncate block">
-                              {pkg.included_storage_gb ?? 0} GB
+                              {(pkg.included_storage_gb ?? 0) > 0
+                                ? `${pkg.included_storage_gb} GB`
+                                : "None"}
                             </strong>
                           </div>
                         </div>
