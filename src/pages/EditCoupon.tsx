@@ -2,7 +2,7 @@ import { useState, useEffect, useId } from "react"
 import { useParams, useNavigate } from "react-router"
 import { useAppSelector } from "@/store/store"
 import { fetchCouponByIdApi, updateCouponApi } from "@/services/couponService"
-import type { DiscountType } from "@/types/coupon"
+import type { DiscountType, CouponScope } from "@/types/coupon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,6 +35,7 @@ import {
   AlertCircle,
   RefreshCw,
   Calculator,
+  ShieldCheck,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -48,6 +49,27 @@ const STATUS_LABELS: Record<string, string> = {
   "0": "Inactive",
 }
 
+const SCOPE_OPTIONS: { value: CouponScope; label: string }[] = [
+  {
+    value: "plan_only",
+    label: "Software Plan Only (Protects Hardware & SMS Costs) — Recommended",
+  },
+  {
+    value: "software_and_storage",
+    label: "Software Plan + Cloud Storage Add-ons",
+  },
+  {
+    value: "all",
+    label: "Entire Order Cart (Software + Hardware + Credits)",
+  },
+]
+
+const SCOPE_LABELS: Record<CouponScope, string> = {
+  plan_only: "Software Plan Only (Recommended)",
+  software_and_storage: "Software Plan + Cloud Storage",
+  all: "Entire Order Cart",
+}
+
 export default function EditCoupon() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -58,11 +80,11 @@ export default function EditCoupon() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Form State
   const [code, setCode] = useState("")
   const [description, setDescription] = useState("")
   const [discountType, setDiscountType] = useState<DiscountType>("percentage")
   const [discountValue, setDiscountValue] = useState("")
+  const [applicableScope, setApplicableScope] = useState<CouponScope>("plan_only")
   const [minOrderAmount, setMinOrderAmount] = useState("")
   const [maxDiscountAmount, setMaxDiscountAmount] = useState("")
   const [startDate, setStartDate] = useState("")
@@ -71,10 +93,8 @@ export default function EditCoupon() {
   const [maxUsesPerUser, setMaxUsesPerUser] = useState("1")
   const [status, setStatus] = useState<1 | 0>(1)
 
-  // Interactive Live Calculator Test Value
   const [sampleOrderAmount, setSampleOrderAmount] = useState<string>("5000")
 
-  // Load Coupon Details
   useEffect(() => {
     if (!id) {
       setLoadError("Invalid coupon ID.")
@@ -95,6 +115,12 @@ export default function EditCoupon() {
         setDescription(coupon.description || "")
         setDiscountType((coupon.discount_type as DiscountType) || "percentage")
         setDiscountValue(coupon.discount_value ? String(coupon.discount_value) : "")
+        const rawScope = coupon.applicable_scope as CouponScope
+        setApplicableScope(
+          rawScope && ["plan_only", "software_and_storage", "all"].includes(rawScope)
+            ? rawScope
+            : "plan_only"
+        )
         setMinOrderAmount(coupon.min_order_amount ? String(coupon.min_order_amount) : "")
         setMaxDiscountAmount(coupon.max_discount_amount ? String(coupon.max_discount_amount) : "")
         setStartDate(coupon.start_date ? coupon.start_date.slice(0, 10) : "")
@@ -116,7 +142,6 @@ export default function EditCoupon() {
     }
   }, [id, token])
 
-  // Live preview calculations
   const numericDiscountVal = parseFloat(discountValue) || 0
   const numericMinOrder = parseFloat(minOrderAmount) || 0
   const numericMaxCap = maxDiscountAmount ? parseFloat(maxDiscountAmount) : null
@@ -127,7 +152,7 @@ export default function EditCoupon() {
 
   if (numericSampleOrder > 0) {
     if (numericMinOrder > 0 && numericSampleOrder < numericMinOrder) {
-      simulatedEligibilityError = `Order below min ₹${numericMinOrder.toLocaleString("en-IN")}`
+      simulatedEligibilityError = `Eligible subtotal below min ₹${numericMinOrder.toLocaleString("en-IN")}`
     } else {
       if (discountType === "percentage") {
         simulatedDiscount = (numericSampleOrder * numericDiscountVal) / 100
@@ -170,7 +195,7 @@ export default function EditCoupon() {
 
     const parsedPerUser = parseInt(maxUsesPerUser, 10)
     if (!maxUsesPerUser || isNaN(parsedPerUser) || parsedPerUser < 1) {
-      toast.error("Please enter a valid positive integer (>= 1) for Usage Limit Per User.")
+      toast.error("Please enter a valid positive integer (>= 1) for Usage Limit Per School.")
       return
     }
 
@@ -181,7 +206,7 @@ export default function EditCoupon() {
     }
 
     if (parsedMaxUses !== null && parsedPerUser > parsedMaxUses) {
-      toast.error("Usage Limit Per User cannot exceed Total Usage Limit.")
+      toast.error("Usage Limit Per School cannot exceed Total Usage Limit.")
       return
     }
 
@@ -198,6 +223,7 @@ export default function EditCoupon() {
         description: description.trim() || undefined,
         discount_type: discountType,
         discount_value: parseFloat(discountValue),
+        applicable_scope: applicableScope,
         min_order_amount: minOrderAmount ? parseFloat(minOrderAmount) : 0,
         max_discount_amount:
           discountType === "percentage" && maxDiscountAmount
@@ -241,7 +267,7 @@ export default function EditCoupon() {
               <span>Edit Coupon {code ? `(${code})` : ""}</span>
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Modify discount rates, redemption caps, and validity parameters.
+              Modify discount rates, applicable scope, redemption caps, and validity parameters.
             </p>
           </div>
         </div>
@@ -312,7 +338,6 @@ export default function EditCoupon() {
         </div>
       ) : !loadError ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column: Form */}
           <div className="lg:col-span-2">
             <form id={formId} onSubmit={handleSubmit} className="space-y-6">
               {/* Card 1: Core Identification */}
@@ -320,10 +345,10 @@ export default function EditCoupon() {
                 <CardHeader className="pb-3 border-b border-border/50 bg-muted/20">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
                     <Sparkles className="h-4 w-4 text-primary" />
-                    <span>Coupon Identification & Type</span>
+                    <span>Coupon Identification & Scope</span>
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Primary promo code and discount model.
+                    Primary promo code, discount model, and hardware/SMS cost protection scope.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-5 space-y-4">
@@ -388,6 +413,34 @@ export default function EditCoupon() {
                         )}
                       </div>
                     </div>
+
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="applicable-scope" className="text-xs font-semibold flex items-center gap-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                        Applicable Discount Scope (Margin Protection)
+                      </Label>
+                      <Select
+                        value={applicableScope}
+                        onValueChange={(val) => {
+                          if (val) setApplicableScope(val as CouponScope)
+                        }}
+                        items={SCOPE_OPTIONS}
+                        itemToStringLabel={(val) =>
+                          SCOPE_LABELS[val as CouponScope] || String(val || "")
+                        }
+                      >
+                        <SelectTrigger id="applicable-scope" className="w-full">
+                          <SelectValue placeholder="Select applicable scope" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SCOPE_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value} label={opt.label}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
@@ -414,13 +467,13 @@ export default function EditCoupon() {
                     <span>Order Conditions & Caps</span>
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Set minimum purchase amount and maximum discount ceilings.
+                    Set minimum eligible purchase amount and maximum discount ceilings.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="min-order-amount" className="text-xs font-semibold">
-                      Minimum Order Amount (₹)
+                      Minimum Eligible Amount (₹)
                     </Label>
                     <div className="relative">
                       <Input
@@ -473,7 +526,7 @@ export default function EditCoupon() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label htmlFor="start-date" className="text-xs font-semibold">
-                        Start Date
+                        Start Date (IST)
                       </Label>
                       <Input
                         id="start-date"
@@ -485,7 +538,7 @@ export default function EditCoupon() {
 
                     <div className="space-y-1.5">
                       <Label htmlFor="end-date" className="text-xs font-semibold">
-                        Expiry Date
+                        Expiry Date (IST)
                       </Label>
                       <Input
                         id="end-date"
@@ -497,7 +550,7 @@ export default function EditCoupon() {
 
                     <div className="space-y-1.5">
                       <Label htmlFor="max-uses" className="text-xs font-semibold">
-                        Total Usage Limit (All Users)
+                        Total Usage Limit (All Schools)
                       </Label>
                       <Input
                         id="max-uses"
@@ -512,7 +565,7 @@ export default function EditCoupon() {
 
                     <div className="space-y-1.5">
                       <Label htmlFor="max-uses-per-user" className="text-xs font-semibold">
-                        Usage Limit Per User <span className="text-destructive">*</span>
+                        Usage Limit Per School <span className="text-destructive">*</span>
                       </Label>
                       <Input
                         id="max-uses-per-user"
@@ -556,7 +609,6 @@ export default function EditCoupon() {
                 </CardContent>
               </Card>
 
-              {/* Bottom Actions */}
               <div className="flex items-center justify-end gap-3 pt-2">
                 <Button
                   type="button"
@@ -588,7 +640,6 @@ export default function EditCoupon() {
             </form>
           </div>
 
-          {/* Right Column: Live Preview & Calculator */}
           <div className="space-y-6">
             <Card className="border border-border/80 shadow-xs sticky top-20">
               <CardHeader className="pb-3 border-b border-border/50 bg-muted/20">
@@ -634,7 +685,13 @@ export default function EditCoupon() {
 
                 <div className="space-y-2 text-xs border-t border-border/60 pt-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Min Order Amount:</span>
+                    <span className="text-muted-foreground">Applies To:</span>
+                    <span className="font-semibold text-primary">
+                      {SCOPE_LABELS[applicableScope]}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Min Eligible Amount:</span>
                     <span className="font-semibold text-foreground">
                       {numericMinOrder > 0 ? `₹${numericMinOrder.toLocaleString("en-IN")}` : "None"}
                     </span>
@@ -662,10 +719,10 @@ export default function EditCoupon() {
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Limit Per User:</span>
+                    <span className="text-muted-foreground">Limit Per School:</span>
                     <span className="font-semibold text-primary">
                       {parseInt(maxUsesPerUser, 10) || 1}{" "}
-                      {(parseInt(maxUsesPerUser, 10) || 1) === 1 ? "time" : "times"} / user
+                      {(parseInt(maxUsesPerUser, 10) || 1) === 1 ? "time" : "times"} / school
                     </span>
                   </div>
                 </div>
@@ -673,12 +730,12 @@ export default function EditCoupon() {
                 <div className="p-3.5 rounded-lg border border-border bg-muted/30 space-y-3">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                     <Calculator className="h-3.5 w-3.5 text-primary" />
-                    <span>Interactive Test Simulator</span>
+                    <span>Interactive Zero-GST Simulator</span>
                   </div>
 
                   <div className="space-y-1">
                     <Label htmlFor="sample-order" className="text-[11px] text-muted-foreground">
-                      Test Order Subtotal (₹)
+                      Test Eligible Subtotal (₹)
                     </Label>
                     <Input
                       id="sample-order"
@@ -706,7 +763,7 @@ export default function EditCoupon() {
                         <span>-₹{simulatedDiscount.toLocaleString("en-IN")}</span>
                       </div>
                       <div className="flex justify-between font-bold text-foreground pt-1 border-t border-border/40">
-                        <span>Final Net Total:</span>
+                        <span>Final Net Total (Zero GST):</span>
                         <span>₹{simulatedFinalPrice.toLocaleString("en-IN")}</span>
                       </div>
                     </div>

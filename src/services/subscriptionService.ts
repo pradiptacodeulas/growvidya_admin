@@ -11,6 +11,9 @@ import type {
   PackagesListParams,
   ApproveSubscriptionPayload,
   RejectSubscriptionPayload,
+  ManualAssignSubscriptionPayload,
+  OrderInvoiceDetails,
+  SchoolLookupItem,
 } from "@/types/subscription"
 
 function getAuthHeaders(token?: string | null): Record<string, string> {
@@ -129,7 +132,7 @@ export async function updatePackageApi(
 }
 
 /**
- * Delete package (cascade deletes its items)
+ * Delete package (soft-deactivates if referenced by schools, hard-deletes otherwise)
  */
 export async function deletePackageApi(
   token: string,
@@ -304,6 +307,61 @@ export async function fetchPublicPlansApi(): Promise<SubscriptionPackage[]> {
 }
 
 /**
+ * Fetch schools lookup for Manual Plan Assignment
+ */
+export async function fetchSchoolsLookupApi(
+  token: string,
+  search = ""
+): Promise<SchoolLookupItem[]> {
+  const query = new URLSearchParams({ limit: "100" })
+  if (search.trim()) query.set("search", search.trim())
+  const response = await fetch(`${API_BASE_URL}/schools?${query.toString()}`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+  const res = await handleResponse<{ schools: SchoolLookupItem[] }>(
+    response,
+    "Failed to retrieve schools list."
+  )
+  return res?.schools || []
+}
+
+/**
+ * Super Admin: Manual Plan Assignment / Enterprise Override (Audit-logged)
+ */
+export async function manualAssignSubscriptionApi(
+  token: string,
+  payload: ManualAssignSubscriptionPayload
+): Promise<SchoolSubscription> {
+  const response = await fetch(`${API_BASE_URL}/subscriptions/manual-assign`, {
+    method: "POST",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  })
+  return handleResponse<SchoolSubscription>(
+    response,
+    "Failed to manually assign subscription plan."
+  )
+}
+
+/**
+ * Super Admin: Fetch Zero-GST Printable Invoice by Order No / Invoice No
+ */
+export async function fetchSubscriptionInvoiceApi(
+  token: string,
+  orderNo: string | number
+): Promise<OrderInvoiceDetails> {
+  const response = await fetch(
+    `${API_BASE_URL}/subscriptions/orders/${encodeURIComponent(String(orderNo))}/invoice`,
+    {
+      method: "GET",
+      headers: getAuthHeaders(token),
+    }
+  )
+  return handleResponse<OrderInvoiceDetails>(response, "Failed to retrieve order invoice details.")
+}
+
+/**
  * Fetch all school subscriptions with filters (search, status, paymentStatus, page, limit)
  */
 export async function fetchSubscriptionsApi(
@@ -441,7 +499,7 @@ export async function extendSubscriptionApi(
 export async function updateSubscriptionStatusApi(
   token: string,
   id: number,
-  payload: { status: 'active' | 'suspended' | 'expired' | 'trial' | 'inactive'; notes?: string }
+  payload: { status: "active" | "suspended" | "expired" | "trial" | "inactive"; notes?: string }
 ): Promise<{ success: boolean; message: string }> {
   const response = await fetch(`${API_BASE_URL}/subscriptions/${id}/status`, {
     method: "PATCH",
@@ -482,6 +540,7 @@ export interface DashboardStatsResponse {
     storageRevenue: number
     machineRevenue: number
     rfidRevenue: number
+    notificationRevenue?: number
   }
   addonBuyers: {
     storage: {
@@ -533,6 +592,7 @@ export interface DashboardStatsResponse {
     plan_name: string
     plan_code: string
     billing_cycle: string
+    tier_rank?: number
     price: number
     total_subscribers: number
     active_subscribers: number
@@ -625,5 +685,3 @@ export async function fetchDashboardStatsApi(token: string): Promise<DashboardSt
     "Failed to retrieve dashboard statistics."
   )
 }
-
-

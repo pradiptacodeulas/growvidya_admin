@@ -9,12 +9,18 @@ import {
   toggleEmailCredentialStatusApi,
   deleteEmailCredentialsApi,
   sendTestEmailApi,
+  fetchCommunicationSettingsApi,
+  updateCommunicationSettingsApi,
+  fetchNotificationPricingApi,
+  updateNotificationPricingApi,
 } from "@/services/settingsService"
 import type {
   EmailCredential,
   EmailProviderType,
   SmtpEncryptionType,
   SaveEmailCredentialPayload,
+  CommunicationSettings,
+  NotificationPricingItem,
 } from "@/types/settings"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,7 +51,6 @@ import {
 } from "@/components/ui/dialog"
 import {
   KeyRound,
-  ShieldCheck,
   Plus,
   Pencil,
   Trash2,
@@ -65,6 +70,10 @@ import {
   Settings as SettingsIcon,
   ChevronRight,
   ShieldAlert,
+  Bell,
+  MessageSquare,
+  Save,
+  IndianRupee,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -120,6 +129,22 @@ export default function EmailDeliverySettings() {
   const [actionId, setActionId] = useState<number | null>(null)
   const [copiedText, setCopiedText] = useState<string | null>(null)
 
+  // Optional Subscription Communication Settings State
+  const [commSettings, setCommSettings] = useState<CommunicationSettings>({
+    email_alerts_enabled: 0,
+    sms_alerts_enabled: 0,
+    notify_on_payment_success: 1,
+    notify_on_offline_decision: 1,
+    notify_on_expiry_reminder: 1,
+    sms_provider: "",
+    sms_sender_id: "",
+  })
+  const [isSavingComm, setIsSavingComm] = useState(false)
+
+  // Notification Credit Pricing State (SMS & Push)
+  const [pricingItems, setPricingItems] = useState<NotificationPricingItem[]>([])
+  const [isSavingPricing, setIsSavingPricing] = useState(false)
+
   // Add / Edit Modal State
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
   const [emailFormMode, setEmailFormMode] = useState<"add" | "edit">("add")
@@ -149,16 +174,43 @@ export default function EmailDeliverySettings() {
   const [testRecipientEmail, setTestRecipientEmail] = useState("")
   const [isSendingTest, setIsSendingTest] = useState(false)
 
-  const loadEmailCredentials = async (showSkeleton = true) => {
+  const loadAllSettings = async (showSkeleton = true) => {
     if (!token) return
     if (showSkeleton) setIsEmailLoading(true)
     else setIsEmailRefreshing(true)
 
     try {
-      const data = await fetchEmailCredentialsApi(token)
-      setEmailCredentials(data || [])
+      const [creds, comm, pricing] = await Promise.all([
+        fetchEmailCredentialsApi(token),
+        fetchCommunicationSettingsApi(token).catch(() => null),
+        fetchNotificationPricingApi(token).catch(() => []),
+      ])
+      setEmailCredentials(creds || [])
+      if (comm) {
+        setCommSettings({
+          email_alerts_enabled: comm.email_alerts_enabled ? 1 : 0,
+          sms_alerts_enabled: comm.sms_alerts_enabled ? 1 : 0,
+          notify_on_payment_success:
+            comm.notify_on_payment_success !== undefined
+              ? (comm.notify_on_payment_success ? 1 : 0)
+              : 1,
+          notify_on_offline_decision:
+            comm.notify_on_offline_decision !== undefined
+              ? (comm.notify_on_offline_decision ? 1 : 0)
+              : 1,
+          notify_on_expiry_reminder:
+            comm.notify_on_expiry_reminder !== undefined
+              ? (comm.notify_on_expiry_reminder ? 1 : 0)
+              : 1,
+          sms_provider: comm.sms_provider || "",
+          sms_sender_id: comm.sms_sender_id || "",
+        })
+      }
+      if (Array.isArray(pricing) && pricing.length > 0) {
+        setPricingItems(pricing)
+      }
     } catch (err: any) {
-      toast.error(err.message || "Failed to load email settings.")
+      toast.error(err.message || "Failed to load email & communication settings.")
     } finally {
       setIsEmailLoading(false)
       setIsEmailRefreshing(false)
@@ -166,8 +218,92 @@ export default function EmailDeliverySettings() {
   }
 
   useEffect(() => {
-    loadEmailCredentials(true)
+    loadAllSettings(true)
   }, [token])
+
+  const handleSaveCommSettings = async () => {
+    if (!token) return
+    if (!canUpdateSettings) {
+      toast.error("Access denied. Update permission required.")
+      return
+    }
+    setIsSavingComm(true)
+    try {
+      const saved = await updateCommunicationSettingsApi(token, {
+        ...commSettings,
+        sms_provider: commSettings.sms_provider?.trim() || null,
+        sms_sender_id: commSettings.sms_sender_id?.trim() || null,
+      })
+      setCommSettings({
+        email_alerts_enabled: saved.email_alerts_enabled ? 1 : 0,
+        sms_alerts_enabled: saved.sms_alerts_enabled ? 1 : 0,
+        notify_on_payment_success: saved.notify_on_payment_success ? 1 : 0,
+        notify_on_offline_decision: saved.notify_on_offline_decision ? 1 : 0,
+        notify_on_expiry_reminder: saved.notify_on_expiry_reminder ? 1 : 0,
+        sms_provider: saved.sms_provider || "",
+        sms_sender_id: saved.sms_sender_id || "",
+      })
+      toast.success("Subscription alert preferences saved successfully.")
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save alert preferences.")
+    } finally {
+      setIsSavingComm(false)
+    }
+  }
+
+  const handleUpdatePricingField = (
+    index: number,
+    field: keyof NotificationPricingItem,
+    value: string | number
+  ) => {
+    setPricingItems((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, [field]: value } : item))
+    )
+  }
+
+  const handleSaveNotificationPricing = async () => {
+    if (!token) return
+    if (!canUpdateSettings) {
+      toast.error("Access denied. Update permission required.")
+      return
+    }
+    for (const item of pricingItems) {
+      const unitPrice = Number(item.unit_price)
+      const minQty = Number(item.min_qty)
+      if (!item.pack_name?.trim()) {
+        toast.error(`Pack name is required for ${item.channel.toUpperCase()}.`)
+        return
+      }
+      if (isNaN(unitPrice) || unitPrice < 0) {
+        toast.error(`Valid non-negative unit price is required for ${item.channel.toUpperCase()}.`)
+        return
+      }
+      if (!Number.isInteger(minQty) || minQty < 1) {
+        toast.error(`Minimum credit order quantity must be at least 1 for ${item.channel.toUpperCase()}.`)
+        return
+      }
+    }
+
+    setIsSavingPricing(true)
+    try {
+      const updated = await updateNotificationPricingApi(
+        token,
+        pricingItems.map((it) => ({
+          ...it,
+          pack_name: it.pack_name.trim(),
+          unit_price: Number(it.unit_price),
+          min_qty: Number(it.min_qty),
+          status: it.status ? 1 : 0,
+        }))
+      )
+      setPricingItems(updated)
+      toast.success("SMS & Push Notification credit pricing updated (Zero GST).")
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update notification credit pricing.")
+    } finally {
+      setIsSavingPricing(false)
+    }
+  }
 
   const handleCopyValue = (text: string, label: string) => {
     navigator.clipboard.writeText(text)
@@ -303,7 +439,7 @@ export default function EmailDeliverySettings() {
         )
       }
       setIsEmailModalOpen(false)
-      await loadEmailCredentials(false)
+      await loadAllSettings(false)
     } catch (err: any) {
       const msg = err.message || "Failed to save email configuration."
       setEmailFormError(msg)
@@ -325,7 +461,7 @@ export default function EmailDeliverySettings() {
       toast.success(
         `${cred.provider === "mailjet" ? "Mailjet" : "SMTP"} is now set as the Default email provider.`
       )
-      await loadEmailCredentials(false)
+      await loadAllSettings(false)
     } catch (err: any) {
       toast.error(err.message || "Failed to set default email provider.")
     } finally {
@@ -348,7 +484,7 @@ export default function EmailDeliverySettings() {
           nextStatus === 1 ? "Active" : "Inactive"
         }.`
       )
-      await loadEmailCredentials(false)
+      await loadAllSettings(false)
     } catch (err: any) {
       toast.error(err.message || "Failed to update provider status.")
     } finally {
@@ -369,7 +505,7 @@ export default function EmailDeliverySettings() {
         `${deleteEmailTarget.provider === "mailjet" ? "Mailjet" : "SMTP"} configuration deleted.`
       )
       setDeleteEmailTarget(null)
-      await loadEmailCredentials(false)
+      await loadAllSettings(false)
     } catch (err: any) {
       toast.error(err.message || "Failed to delete email configuration.")
     } finally {
@@ -411,7 +547,7 @@ export default function EmailDeliverySettings() {
         <div className="flex items-center gap-3 p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs font-medium">
           <ShieldAlert className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
           <span>
-            <strong>Read-only access:</strong> You have permission to view Email Delivery settings. Modifying, adding, toggling, or deleting mail configurations requires update permission.
+            <strong>Read-only access:</strong> You have permission to view Email & Communication settings. Modifying providers, toggles, or credit pricing requires update permission.
           </span>
         </div>
       )}
@@ -423,7 +559,7 @@ export default function EmailDeliverySettings() {
             <SettingsIcon className="h-3.5 w-3.5" />
             <span>Settings</span>
             <ChevronRight className="h-3.5 w-3.5" />
-            <span className="text-foreground font-semibold">Email Delivery</span>
+            <span className="text-foreground font-semibold">Email, SMS & Notification Pricing</span>
           </div>
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-primary/10 text-primary">
@@ -431,9 +567,11 @@ export default function EmailDeliverySettings() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-                Email Delivery Settings (Mailjet & SMTP)
+                Email Delivery, Optional Alert Toggles & Credit Pricing
               </h1>
-              
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Configure Mailjet / SMTP, toggle optional subscription Email & SMS alerts On/Off, and manage SMS/Push credit rates.
+              </p>
             </div>
           </div>
         </div>
@@ -442,7 +580,7 @@ export default function EmailDeliverySettings() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => loadEmailCredentials(false)}
+            onClick={() => loadAllSettings(false)}
             disabled={isEmailLoading || isEmailRefreshing}
             className="gap-2 h-9 text-xs font-semibold cursor-pointer"
           >
@@ -478,7 +616,7 @@ export default function EmailDeliverySettings() {
       </div>
 
       {/* Summary Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border border-border/80 shadow-xs">
           <CardContent className="p-4 sm:p-5 flex items-center justify-between">
             <div className="space-y-1">
@@ -537,24 +675,431 @@ export default function EmailDeliverySettings() {
           <CardContent className="p-4 sm:p-5 flex items-center justify-between">
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground">
-                Credential Encryption
+                Subscription Email Alerts
               </p>
-              <div className="text-lg font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+              <div className="text-lg font-bold tracking-tight">
                 {isEmailLoading ? (
-                  <Skeleton className="h-6 w-28" />
-                ) : emailCredentials.length > 0 ? (
-                  "AES-256 Encrypted"
+                  <Skeleton className="h-6 w-20" />
+                ) : commSettings.email_alerts_enabled === 1 ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">Enabled (ON)</span>
                 ) : (
-                  <span className="text-muted-foreground">No Credentials</span>
+                  <span className="text-muted-foreground">Optional (OFF)</span>
                 )}
               </div>
             </div>
             <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <ShieldCheck className="size-5" />
+              <Bell className="size-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-border/80 shadow-xs">
+          <CardContent className="p-4 sm:p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">
+                Subscription SMS Alerts
+              </p>
+              <div className="text-lg font-bold tracking-tight">
+                {isEmailLoading ? (
+                  <Skeleton className="h-6 w-20" />
+                ) : commSettings.sms_alerts_enabled === 1 ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">Enabled (ON)</span>
+                ) : (
+                  <span className="text-muted-foreground">Optional (OFF)</span>
+                )}
+              </div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+              <MessageSquare className="size-5" />
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Optional Subscription Lifecycle Alert Controls (Super Admin On/Off) */}
+      <Card className="border border-border/80 shadow-xs">
+        <CardHeader className="border-b bg-muted/25 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <Bell className="h-4 w-4 text-primary" />
+                Optional Subscription Lifecycle Alerts (Super Admin Controlled)
+              </CardTitle>
+              <CardDescription className="text-xs mt-1">
+                Control whether subscription payment receipts, bank transfer approvals, and expiry reminders are dispatched via Email (SMTP/Mailjet) or SMS. When turned OFF, workflows skip external messaging cleanly without errors.
+              </CardDescription>
+            </div>
+            {canUpdateSettings && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSaveCommSettings}
+                disabled={isSavingComm || isEmailLoading}
+                className="gap-1.5 h-8 text-xs font-semibold cursor-pointer self-start sm:self-auto"
+              >
+                {isSavingComm ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-3.5 w-3.5" />
+                    Save Alert Preferences
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-5 space-y-5">
+          {/* Master Channel Toggles */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 rounded-xl border bg-muted/20 flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold text-foreground">
+                    Email Alerts (via Active SMTP / Mailjet)
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {defaultEmailConfig
+                    ? `Uses default provider: ${defaultEmailConfig.provider.toUpperCase()} (${defaultEmailConfig.from_email})`
+                    : "No active default email provider configured yet — alerts will be skipped safely."}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!canUpdateSettings}
+                  variant={commSettings.email_alerts_enabled === 1 ? "default" : "outline"}
+                  onClick={() =>
+                    setCommSettings((p) => ({ ...p, email_alerts_enabled: 1 }))
+                  }
+                  className="h-8 px-3 text-xs cursor-pointer"
+                >
+                  ON
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!canUpdateSettings}
+                  variant={commSettings.email_alerts_enabled === 0 ? "default" : "outline"}
+                  onClick={() =>
+                    setCommSettings((p) => ({ ...p, email_alerts_enabled: 0 }))
+                  }
+                  className="h-8 px-3 text-xs cursor-pointer"
+                >
+                  OFF
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl border bg-muted/20 flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                  <span className="text-sm font-semibold text-foreground">
+                    SMS Subscription Alerts (Optional)
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Toggle transactional SMS alerts for school subscription activations & reminders.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!canUpdateSettings}
+                  variant={commSettings.sms_alerts_enabled === 1 ? "default" : "outline"}
+                  onClick={() =>
+                    setCommSettings((p) => ({ ...p, sms_alerts_enabled: 1 }))
+                  }
+                  className="h-8 px-3 text-xs cursor-pointer"
+                >
+                  ON
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!canUpdateSettings}
+                  variant={commSettings.sms_alerts_enabled === 0 ? "default" : "outline"}
+                  onClick={() =>
+                    setCommSettings((p) => ({ ...p, sms_alerts_enabled: 0 }))
+                  }
+                  className="h-8 px-3 text-xs cursor-pointer"
+                >
+                  OFF
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Event-level Switches */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label className="flex items-start gap-2.5 p-3 rounded-lg border bg-background cursor-pointer select-none">
+              <input
+                type="checkbox"
+                disabled={!canUpdateSettings}
+                checked={commSettings.notify_on_payment_success === 1}
+                onChange={(e) =>
+                  setCommSettings((p) => ({
+                    ...p,
+                    notify_on_payment_success: e.target.checked ? 1 : 0,
+                  }))
+                }
+                className="mt-0.5 rounded border-border"
+              />
+              <div className="text-xs">
+                <span className="font-semibold text-foreground block">
+                  Online Payment & Instant Activation
+                </span>
+                <span className="text-muted-foreground">
+                  Send Zero-GST invoice confirmation when Razorpay payment succeeds.
+                </span>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-2.5 p-3 rounded-lg border bg-background cursor-pointer select-none">
+              <input
+                type="checkbox"
+                disabled={!canUpdateSettings}
+                checked={commSettings.notify_on_offline_decision === 1}
+                onChange={(e) =>
+                  setCommSettings((p) => ({
+                    ...p,
+                    notify_on_offline_decision: e.target.checked ? 1 : 0,
+                  }))
+                }
+                className="mt-0.5 rounded border-border"
+              />
+              <div className="text-xs">
+                <span className="font-semibold text-foreground block">
+                  Offline Bank Transfer Decisions
+                </span>
+                <span className="text-muted-foreground">
+                  Notify schools when Super Admin approves or rejects UTR bank transfers.
+                </span>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-2.5 p-3 rounded-lg border bg-background cursor-pointer select-none">
+              <input
+                type="checkbox"
+                disabled={!canUpdateSettings}
+                checked={commSettings.notify_on_expiry_reminder === 1}
+                onChange={(e) =>
+                  setCommSettings((p) => ({
+                    ...p,
+                    notify_on_expiry_reminder: e.target.checked ? 1 : 0,
+                  }))
+                }
+                className="mt-0.5 rounded border-border"
+              />
+              <div className="text-xs">
+                <span className="font-semibold text-foreground block">
+                  Automated Expiry Reminders
+                </span>
+                <span className="text-muted-foreground">
+                  Remind schools at 15, 7, 3, 1, and 0 days before subscription expiry.
+                </span>
+              </div>
+            </label>
+          </div>
+
+          {/* Optional SMS Sender Metadata when SMS is ON */}
+          {commSettings.sms_alerts_enabled === 1 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border/60">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">
+                  SMS Provider Name <span className="text-muted-foreground font-normal">(Optional)</span>
+                </Label>
+                <Input
+                  placeholder="e.g. MSG91 / TextLocal / Fast2SMS"
+                  value={commSettings.sms_provider || ""}
+                  disabled={!canUpdateSettings}
+                  onChange={(e) =>
+                    setCommSettings((p) => ({ ...p, sms_provider: e.target.value }))
+                  }
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">
+                  SMS DLT Sender ID <span className="text-muted-foreground font-normal">(Optional)</span>
+                </Label>
+                <Input
+                  placeholder="e.g. GRWVDY"
+                  value={commSettings.sms_sender_id || ""}
+                  disabled={!canUpdateSettings}
+                  onChange={(e) =>
+                    setCommSettings((p) => ({ ...p, sms_sender_id: e.target.value }))
+                  }
+                  className="h-9 text-xs font-mono uppercase"
+                />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* SMS & Push Notification Credit Pricing (Zero GST) */}
+      <Card className="border border-border/80 shadow-xs">
+        <CardHeader className="border-b bg-muted/25 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <IndianRupee className="h-4 w-4 text-primary" />
+                Prepaid SMS & Push Notification Credit Pricing (Zero GST)
+              </CardTitle>
+              <CardDescription className="text-xs mt-1">
+                Dynamic database rates used across Onboarding & School ERP Add-on Checkout. Schools purchase prepaid credits into their metered Notification Wallet with zero hardcoded prices and zero GST.
+              </CardDescription>
+            </div>
+            {canUpdateSettings && pricingItems.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSaveNotificationPricing}
+                disabled={isSavingPricing || isEmailLoading}
+                className="gap-1.5 h-8 text-xs font-semibold cursor-pointer self-start sm:self-auto"
+              >
+                {isSavingPricing ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Saving Rates...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-3.5 w-3.5" />
+                    Save Credit Pricing
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-5">
+          {isEmailLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Skeleton className="h-36 w-full" />
+              <Skeleton className="h-36 w-full" />
+            </div>
+          ) : pricingItems.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No notification pricing rows returned from server.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {pricingItems.map((item, idx) => {
+                const sampleTotal = (Number(item.unit_price || 0) * Number(item.min_qty || 1000)).toFixed(2)
+                return (
+                  <div
+                    key={item.channel}
+                    className="p-4 rounded-xl border bg-muted/15 space-y-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className="uppercase font-mono text-xs font-bold border-primary/40 bg-primary/10 text-primary"
+                        >
+                          {item.channel.toUpperCase()} Channel
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          Min pack = ₹{Number(sampleTotal).toLocaleString("en-IN")} net
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={!canUpdateSettings}
+                        onClick={() =>
+                          handleUpdatePricingField(idx, "status", item.status === 1 ? 0 : 1)
+                        }
+                        className="cursor-pointer"
+                      >
+                        <Badge
+                          variant={item.status === 1 ? "default" : "secondary"}
+                          className={
+                            item.status === 1
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[11px]"
+                              : "text-[11px]"
+                          }
+                        >
+                          {item.status === 1 ? "Active" : "Disabled"}
+                        </Badge>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-1 sm:col-span-1">
+                        <Label className="text-[11px] font-semibold">Pack Label</Label>
+                        <Input
+                          value={item.pack_name}
+                          disabled={!canUpdateSettings}
+                          onChange={(e) =>
+                            handleUpdatePricingField(idx, "pack_name", e.target.value)
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Net Price / Credit (₹)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={item.unit_price}
+                          disabled={!canUpdateSettings}
+                          onChange={(e) =>
+                            handleUpdatePricingField(idx, "unit_price", e.target.value)
+                          }
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Min Order Credits</Label>
+                        <Input
+                          type="number"
+                          step="100"
+                          min="1"
+                          value={item.min_qty}
+                          disabled={!canUpdateSettings}
+                          onChange={(e) =>
+                            handleUpdatePricingField(idx, "min_qty", Number(e.target.value))
+                          }
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold">Description</Label>
+                      <Input
+                        value={item.description || ""}
+                        disabled={!canUpdateSettings}
+                        placeholder="Short description shown in school add-on configurator"
+                        onChange={(e) =>
+                          handleUpdatePricingField(idx, "description", e.target.value)
+                        }
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Two Provider Cards: Mailjet & SMTP */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1004,7 +1549,6 @@ export default function EmailDeliverySettings() {
                 ? `Configure ${provider === "mailjet" ? "Mailjet API" : "SMTP Server"}`
                 : `Edit ${provider === "mailjet" ? "Mailjet API" : "SMTP Server"} Credentials`}
             </DialogTitle>
-           
           </DialogHeader>
 
           <form onSubmit={handleEmailSaveSubmit} className="space-y-4 py-1">

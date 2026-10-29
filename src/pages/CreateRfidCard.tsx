@@ -1,6 +1,7 @@
 import { useState, useRef } from "react"
 import { useNavigate } from "react-router"
 import { useAppSelector } from "@/store/store"
+import { useDraftState, clearFormDraft } from "@/hooks/useFormDraft"
 import { createRfidCardApi } from "@/services/rfidCardService"
 import type { CreateRfidCardPayload, RfidCardType } from "@/types/rfidCard"
 import { Button } from "@/components/ui/button"
@@ -74,6 +75,8 @@ const READ_RANGE_PRESETS = [
   { value: "3 - 10 meters", label: "3 - 10 meters (UHF Parking/Gate)" },
 ]
 
+const FORM_DRAFT_KEY = "create_rfid_card"
+
 export default function CreateRfidCard() {
   const navigate = useNavigate()
   const token = useAppSelector((state) => state.auth.token)
@@ -85,15 +88,20 @@ export default function CreateRfidCard() {
   const [filePreview, setFilePreview] = useState<string | null>(null)
 
   // Form State
-  const [cardName, setCardName] = useState("")
-  const [cardCode, setCardCode] = useState("")
-  const [cardType, setCardType] = useState<RfidCardType>("pvc_card")
-  const [frequency, setFrequency] = useState("13.56 MHz")
-  const [readRange, setReadRange] = useState("Up to 5 cm")
-  const [unitPrice, setUnitPrice] = useState("")
-  const [minOrderQty, setMinOrderQty] = useState("50")
-  const [status, setStatus] = useState<number>(1)
-  const [description, setDescription] = useState("")
+  const [cardName, setCardName] = useDraftState(FORM_DRAFT_KEY, "cardName", "")
+  const [cardCode, setCardCode] = useDraftState(FORM_DRAFT_KEY, "cardCode", "")
+  const [cardType, setCardType] = useDraftState<RfidCardType>(FORM_DRAFT_KEY, "cardType", "pvc_card")
+  const [frequency, setFrequency] = useDraftState(FORM_DRAFT_KEY, "frequency", "13.56 MHz")
+  const [readRange, setReadRange] = useDraftState(FORM_DRAFT_KEY, "readRange", "Up to 5 cm")
+  const [unitPrice, setUnitPrice] = useDraftState(FORM_DRAFT_KEY, "unitPrice", "")
+  const [minOrderQty, setMinOrderQty] = useDraftState(FORM_DRAFT_KEY, "minOrderQty", "50")
+  const [status, setStatus] = useDraftState<number>(FORM_DRAFT_KEY, "status", 1)
+  const [description, setDescription] = useDraftState(FORM_DRAFT_KEY, "description", "")
+
+  const handleCancel = () => {
+    clearFormDraft(FORM_DRAFT_KEY)
+    navigate("/rfid-cards")
+  }
 
   // Handle File Selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -162,6 +170,7 @@ export default function CreateRfidCard() {
 
       const result = await createRfidCardApi(token, payload)
       toast.success(`RFID card "${result.card_name}" created successfully!`)
+      clearFormDraft(FORM_DRAFT_KEY)
       navigate("/rfid-cards")
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to create RFID card."
@@ -520,7 +529,7 @@ export default function CreateRfidCard() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => navigate("/rfid-cards")}
+            onClick={handleCancel}
             disabled={isSubmitting}
             className="cursor-pointer"
           >

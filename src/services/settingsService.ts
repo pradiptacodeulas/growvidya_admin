@@ -4,6 +4,8 @@ import type {
   SaveRazorpayCredentialsPayload,
   EmailCredential,
   SaveEmailCredentialPayload,
+  CommunicationSettings,
+  NotificationPricingItem,
 } from "@/types/settings"
 
 async function makeRequest(
@@ -242,5 +244,73 @@ export async function sendTestEmailApi(
   return handleResponse<{ provider: string }>(
     response,
     "Failed to send test email"
+  )
+}
+
+// ==========================================
+// 3. OPTIONAL SUBSCRIPTION COMMUNICATION TOGGLES & NOTIFICATION CREDIT PRICING
+// ==========================================
+
+export async function fetchCommunicationSettingsApi(
+  token: string
+): Promise<CommunicationSettings> {
+  const response = await makeRequest(
+    "/settings/communication",
+    { method: "GET" },
+    token
+  )
+  return handleResponse<CommunicationSettings>(
+    response,
+    "Failed to fetch communication alert settings"
+  )
+}
+
+export async function updateCommunicationSettingsApi(
+  token: string,
+  payload: Partial<CommunicationSettings>
+): Promise<CommunicationSettings> {
+  const response = await makeRequest(
+    "/settings/communication",
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+    token
+  )
+  return handleResponse<CommunicationSettings>(
+    response,
+    "Failed to update communication alert settings"
+  )
+}
+
+export async function fetchNotificationPricingApi(
+  token: string
+): Promise<NotificationPricingItem[]> {
+  const response = await makeRequest(
+    "/settings/notification-pricing",
+    { method: "GET" },
+    token
+  )
+  return handleResponse<NotificationPricingItem[]>(
+    response,
+    "Failed to fetch notification credit pricing"
+  )
+}
+
+export async function updateNotificationPricingApi(
+  token: string,
+  items: NotificationPricingItem[]
+): Promise<NotificationPricingItem[]> {
+  const response = await makeRequest(
+    "/settings/notification-pricing",
+    {
+      method: "PUT",
+      body: JSON.stringify({ items }),
+    },
+    token
+  )
+  return handleResponse<NotificationPricingItem[]>(
+    response,
+    "Failed to update notification credit pricing"
   )
 }

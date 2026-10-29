@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useNavigate, useParams } from "react-router"
 import { useAppSelector } from "@/store/store"
 import { toast } from "sonner"
 import {
   fetchPackageByIdApi,
+  fetchPackagesApi,
   updatePackageApi,
 } from "@/services/subscriptionService"
-import type { BillingCycle } from "@/types/subscription"
+import type { BillingCycle, SubscriptionPackage } from "@/types/subscription"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -44,23 +45,51 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
+  HardDrive,
+  Star,
+  Infinity as InfinityIcon,
+  Calculator,
+  Zap,
+  Tag,
+  X,
 } from "lucide-react"
 
-// Supported billing cycles
+const CYCLE_MONTHS: Record<BillingCycle, number> = {
+  monthly: 1,
+  quarterly: 3,
+  half_yearly: 6,
+  annual: 12,
+  trial: 0,
+}
+
+const CYCLE_SHORT_SUFFIX: Record<BillingCycle, string> = {
+  monthly: "month",
+  quarterly: "quarter",
+  half_yearly: "6 months",
+  annual: "year",
+  trial: "trial",
+}
+
+function formatCleanPercent(orig: number, sell: number): string {
+  if (!(orig > 0) || isNaN(sell) || sell < 0 || orig <= sell) return ""
+  const pct = ((orig - sell) / orig) * 100
+  return Number(pct.toFixed(2)).toString()
+}
+
 const BILLING_CYCLE_OPTIONS: { value: BillingCycle; label: string }[] = [
-  { value: "monthly", label: "Monthly" },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "half_yearly", label: "Half-Yearly" },
-  { value: "annual", label: "Annually" },
-  { value: "trial", label: "Trial" },
+  { value: "monthly", label: "Monthly (1 Month)" },
+  { value: "quarterly", label: "Quarterly (3 Months)" },
+  { value: "half_yearly", label: "Half-Yearly (6 Months)" },
+  { value: "annual", label: "Annually (12 Months)" },
+  { value: "trial", label: "Free Trial" },
 ]
 
 const BILLING_CYCLE_LABELS: Record<string, string> = {
-  monthly: "Monthly",
-  quarterly: "Quarterly",
-  half_yearly: "Half-Yearly",
-  annual: "Annually",
-  trial: "Trial",
+  monthly: "Monthly (1 Month)",
+  quarterly: "Quarterly (3 Months)",
+  half_yearly: "Half-Yearly (6 Months)",
+  annual: "Annually (12 Months)",
+  trial: "Free Trial",
 }
 
 interface PlanFeatureItem {
@@ -83,23 +112,32 @@ export default function EditPackage() {
   const navigate = useNavigate()
   const token = useAppSelector((state) => state.auth.token)
 
-  // Loading & Data state
   const [isLoading, setIsLoading] = useState(true)
   const [planName, setPlanName] = useState("")
   const [planCode, setPlanCode] = useState("")
+  const [planGroup, setPlanGroup] = useState("")
+  const [tierRank, setTierRank] = useState<number | "">(1)
+  const [originalPrice, setOriginalPrice] = useState("")
+  const [discountPercent, setDiscountPercent] = useState("")
   const [price, setPrice] = useState("")
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly")
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("annual")
+  const [existingPackages, setExistingPackages] = useState<SubscriptionPackage[]>([])
   const [freeTrialDays, setFreeTrialDays] = useState<number | "">("")
   const [maxStudents, setMaxStudents] = useState<number | "">("")
+  const [includedStorageGb, setIncludedStorageGb] = useState<number | "">("")
+  const [isPopular, setIsPopular] = useState<1 | 0>(0)
   const [status, setStatus] = useState<1 | 0>(1)
   const [description, setDescription] = useState("")
-
-  // Repeater Items State
   const [items, setItems] = useState<PlanFeatureItem[]>([])
-
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Load package by ID from API
+  useEffect(() => {
+    if (!token) return
+    fetchPackagesApi(token, { limit: 100 })
+      .then((res) => setExistingPackages(res?.packages ?? []))
+      .catch(() => {})
+  }, [token])
+
   useEffect(() => {
     if (!token || !id) return
     setIsLoading(true)
@@ -108,7 +146,21 @@ export default function EditPackage() {
       .then((pkg) => {
         setPlanName(pkg.plan_name || "")
         setPlanCode(pkg.plan_code || "")
+        setPlanGroup(pkg.plan_group || "")
+        setTierRank(pkg.tier_rank !== undefined && pkg.tier_rank !== null ? Number(pkg.tier_rank) : 1)
+        const sellNum = Number(pkg.price ?? 0)
+        const origNum =
+          pkg.original_price !== null && pkg.original_price !== undefined && pkg.original_price !== ""
+            ? Number(pkg.original_price)
+            : 0
         setPrice(String(pkg.price ?? 0))
+        if (origNum > sellNum) {
+          setOriginalPrice(String(origNum))
+          setDiscountPercent(formatCleanPercent(origNum, sellNum))
+        } else {
+          setOriginalPrice("")
+          setDiscountPercent("")
+        }
         setBillingCycle(pkg.billing_cycle || "annual")
         setFreeTrialDays(
           pkg.free_trial_days !== undefined && pkg.free_trial_days !== null
@@ -120,16 +172,23 @@ export default function EditPackage() {
             ? pkg.max_students
             : ""
         )
+        setIncludedStorageGb(
+          pkg.included_storage_gb !== undefined && pkg.included_storage_gb !== null
+            ? Number(pkg.included_storage_gb)
+            : 0
+        )
+        setIsPopular(Number(pkg.is_popular) === 1 ? 1 : 0)
         setStatus(pkg.status ?? 1)
         setDescription(pkg.description || "")
+
+        const customItems = Array.isArray(pkg.items) ? pkg.items : []
+
         setItems(
-          pkg.items && Array.isArray(pkg.items)
-            ? pkg.items.map((it) => ({
-                id: it.id,
-                item_name: it.item_name || "",
-                description: it.description || "",
-              }))
-            : []
+          customItems.map((it) => ({
+            id: it.id,
+            item_name: it.item_name || "",
+            description: it.description || "",
+          }))
         )
       })
       .catch((err: Error) => {
@@ -140,14 +199,68 @@ export default function EditPackage() {
       })
   }, [token, id])
 
+  const effectiveGroupKey = useMemo(() => {
+    const manual = planGroup.trim().toLowerCase()
+    if (manual) return manual
+    return slugify(planName.replace(/\b(plan|package|monthly|quarterly|half_yearly|annual|trial)\b/gi, ""))
+  }, [planGroup, planName])
+
+  const matchingMonthlyPlan = useMemo(() => {
+    if (!effectiveGroupKey || CYCLE_MONTHS[billingCycle] <= 1) return null
+    return (
+      existingPackages.find((p) => {
+        if (Number(p.id) === Number(id)) return false
+        if (p.billing_cycle !== "monthly" || !(Number(p.price) > 0)) return false
+        const pkgGroup =
+          (p.plan_group || "").trim().toLowerCase() ||
+          slugify(p.plan_name.replace(/\b(plan|package|monthly|quarterly|half_yearly|annual|trial)\b/gi, ""))
+        return pkgGroup === effectiveGroupKey
+      }) || null
+    )
+  }, [existingPackages, effectiveGroupKey, billingCycle, id])
+
+  const handleOriginalPriceChange = (val: string) => {
+    setOriginalPrice(val)
+    const origNum = parseFloat(val)
+    const sellNum = parseFloat(price)
+    if (!isNaN(origNum) && origNum > 0) {
+      if (price !== "" && !isNaN(sellNum)) {
+        setDiscountPercent(origNum > sellNum ? formatCleanPercent(origNum, sellNum) : "")
+      } else if (discountPercent !== "") {
+        const pctNum = parseFloat(discountPercent)
+        if (!isNaN(pctNum) && pctNum >= 0 && pctNum <= 100) {
+          const computed = Math.max(0, Number((origNum * (1 - pctNum / 100)).toFixed(2)))
+          setPrice(computed.toString())
+        }
+      }
+    } else {
+      setDiscountPercent("")
+    }
+  }
+
+  const handleDiscountPercentChange = (val: string) => {
+    setDiscountPercent(val)
+    const origNum = parseFloat(originalPrice)
+    const pctNum = parseFloat(val)
+    if (!isNaN(origNum) && origNum > 0 && val !== "" && !isNaN(pctNum) && pctNum >= 0 && pctNum <= 100) {
+      const computedSell = Math.max(0, Number((origNum * (1 - pctNum / 100)).toFixed(2)))
+      setPrice(computedSell.toString())
+    }
+  }
+
+  const handleSellingPriceChange = (val: string) => {
+    setPrice(val)
+    const origNum = parseFloat(originalPrice)
+    const sellNum = parseFloat(val)
+    if (!isNaN(origNum) && origNum > 0 && val !== "" && !isNaN(sellNum) && origNum > sellNum) {
+      setDiscountPercent(formatCleanPercent(origNum, sellNum))
+    } else {
+      setDiscountPercent("")
+    }
+  }
+
   const handleAddItem = () => {
-    setItems((prev) => [
-      ...prev,
-      {
-        item_name: "",
-        description: "",
-      },
-    ])
+    setItems((prev) => [...prev, { item_name: "", description: "" }])
   }
 
   const handleRemoveItem = (index: number) => {
@@ -161,10 +274,7 @@ export default function EditPackage() {
   ) => {
     setItems((prev) => {
       const updated = [...prev]
-      updated[index] = {
-        ...updated[index],
-        [field]: value,
-      }
+      updated[index] = { ...updated[index], [field]: value }
       return updated
     })
   }
@@ -189,15 +299,31 @@ export default function EditPackage() {
 
     const parsedPrice = parseFloat(price)
     if (isNaN(parsedPrice) || parsedPrice < 0) {
-      toast.error("Please enter a valid price (greater than or equal to 0).")
+      toast.error("Please enter a valid Net Selling Price (greater than or equal to 0).")
       return
     }
 
-    // Validate repeater items
+    const parsedOriginal =
+      originalPrice.trim() !== "" ? parseFloat(originalPrice) : null
+    if (parsedOriginal !== null && (isNaN(parsedOriginal) || parsedOriginal < 0)) {
+      toast.error("Please enter a valid Actual / Regular Price.")
+      return
+    }
+    if (parsedOriginal !== null && parsedOriginal > 0 && parsedOriginal < parsedPrice) {
+      toast.error("Actual / Regular Price cannot be lower than the Net Selling Price.")
+      return
+    }
+
+    const parsedTierRank = Number(tierRank) || 1
+    if (parsedTierRank < 1) {
+      toast.error("Tier Rank must be 1 or greater.")
+      return
+    }
+
     for (let i = 0; i < items.length; i++) {
       const it = items[i]
       if (!it.item_name.trim()) {
-        toast.error(`Feature / Add-on #${i + 1} must have an Item Name.`)
+        toast.error(`Custom Feature #${i + 1} must have an Item Name.`)
         return
       }
     }
@@ -210,16 +336,23 @@ export default function EditPackage() {
         item_name: it.item_name.trim(),
         description: it.description?.trim() || "",
         item_code: slugify(it.item_name).toUpperCase(),
+        item_type: "feature" as const,
         status: 1 as const,
       }))
 
       await updatePackageApi(token, Number(id), {
         plan_name: planName.trim(),
         plan_code: planCode.trim(),
+        plan_group: planGroup.trim() || slugify(planName),
+        tier_rank: parsedTierRank,
         price: parsedPrice,
+        original_price:
+          parsedOriginal !== null && parsedOriginal > parsedPrice ? parsedOriginal : null,
         billing_cycle: billingCycle,
         free_trial_days: freeTrialDays === "" ? 0 : Number(freeTrialDays),
         max_students: Number(maxStudents) || 0,
+        included_storage_gb: includedStorageGb === "" ? 0 : Math.max(0, Number(includedStorageGb)),
+        is_popular: isPopular,
         status,
         description: description.trim(),
         items: cleanedItems,
@@ -250,10 +383,10 @@ export default function EditPackage() {
         </Button>
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            Edit Plan
+            Edit Subscription Plan
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Modify subscription plan configuration, billing cycle, free trial days, and features.
+            Modify tier hierarchy, flat Zero-GST pricing, cloud storage quota, and gated ERP modules.
           </p>
         </div>
       </div>
@@ -278,23 +411,39 @@ export default function EditPackage() {
           {/* SECTION 1: Core Plan Information Card */}
           <Card className="border-border/70 shadow-sm">
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <Package className="h-4 w-4" />
                   </div>
-                  <CardTitle className="text-base font-semibold">1. Core Plan Information</CardTitle>
+                  <CardTitle className="text-base font-semibold">1. Core Plan & Tier Hierarchy</CardTitle>
                 </div>
-                <Badge variant={status === 1 ? "default" : "secondary"} className="text-xs">
-                  {status === 1 ? "Active Plan" : "Draft / Inactive"}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  {isPopular === 1 && (
+                    <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 text-xs gap-1">
+                      <Star className="h-3 w-3 fill-current" />
+                      Most Popular
+                    </Badge>
+                  )}
+                  <Badge variant={status === 1 ? "default" : "secondary"} className="text-xs">
+                    {status === 1 ? "Active Plan" : "Draft / Inactive"}
+                  </Badge>
+                </div>
               </div>
               <CardDescription className="text-xs">
-                Basic identification, pricing, billing cycle, and dynamic trial settings for schools.
+                Flat net pricing (Zero GST). Tier Rank enforces the strict no-downgrade policy across renewals and upgrades.
               </CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-4">
+              {/* Unlimited Teachers & Branches Notice */}
+              <div className="flex items-center gap-2.5 p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 text-xs text-emerald-800 dark:text-emerald-300">
+                <InfinityIcon className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>
+                  <strong>Unlimited Teachers & Unlimited Campus Branches</strong> are automatically included on every plan. Only Student Quota, Cloud Storage, and Gated Modules are metered per tier.
+                </span>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {/* Plan Name */}
                 <div className="space-y-1.5">
@@ -315,7 +464,7 @@ export default function EditPackage() {
                 {/* Plan Code */}
                 <div className="space-y-1.5">
                   <Label htmlFor="plan_code" className="text-xs font-semibold">
-                    Plan Code (Unique Identifier) <span className="text-destructive">*</span>
+                    Plan Code (Unique Slug) <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="plan_code"
@@ -328,29 +477,49 @@ export default function EditPackage() {
                   />
                 </div>
 
-                {/* Base Price */}
+                {/* Plan Group */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="price" className="text-xs font-semibold">
-                    Base Price (₹ INR) <span className="text-destructive">*</span>
+                  <Label htmlFor="plan_group" className="text-xs font-semibold">
+                    Tier Family Group
                   </Label>
                   <Input
-                    id="price"
+                    id="plan_group"
+                    placeholder="e.g. starter, growth, enterprise"
+                    value={planGroup}
+                    onChange={(e) => setPlanGroup(e.target.value)}
+                    disabled={isSubmitting}
+                    className="h-9 text-xs font-mono"
+                  />
+                  <span className="text-[10px] text-muted-foreground">
+                    Groups Monthly/Quarterly/Annual variants of the same tier together.
+                  </span>
+                </div>
+
+                {/* Tier Rank */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="tier_rank" className="text-xs font-semibold">
+                    Tier Rank (No-Downgrade Order) <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="tier_rank"
                     type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
+                    min="1"
+                    step="1"
+                    placeholder="1"
+                    value={tierRank}
+                    onChange={(e) =>
+                      setTierRank(e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value, 10) || 1))
+                    }
                     disabled={isSubmitting}
                     className="h-9 text-xs"
                     required
                   />
                   <span className="text-[10px] text-muted-foreground">
-                    Enter 0 for complimentary plans.
+                    e.g. 1 = Starter, 2 = Growth, 3 = Enterprise. Higher rank = Upgrade.
                   </span>
                 </div>
 
-                {/* Billing Cycle - Exactly 2 options: Monthly and Annually */}
+                {/* Billing Cycle */}
                 <div className="space-y-1.5">
                   <Label htmlFor="billing_cycle" className="text-xs font-semibold">
                     Billing Cycle <span className="text-destructive">*</span>
@@ -380,12 +549,234 @@ export default function EditPackage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Smart 3-Box Pricing & Strikethrough Discount Strip (Full Width) */}
+                <div className="sm:col-span-2 lg:col-span-3 rounded-xl border border-primary/25 bg-primary/[0.03] p-4 space-y-3.5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <Calculator className="h-4 w-4 text-primary" />
+                      <span className="text-xs font-bold text-foreground">
+                        Smart Pricing & Strikethrough Discount (Two-Way Calculator + Editable Fields)
+                      </span>
+                    </div>
+                    {originalPrice.trim() !== "" && (
+                      <button
+                        type="button"
+                        onClick={() => handleOriginalPriceChange("")}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-destructive cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                        Clear Discount
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Box 1: Actual / Regular Price */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="original_price" className="text-xs font-semibold">
+                        Actual / Regular Price (₹ Optional)
+                      </Label>
+                      <Input
+                        id="original_price"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="e.g. 2400 (Strikethrough MRP)"
+                        value={originalPrice}
+                        onChange={(e) => handleOriginalPriceChange(e.target.value)}
+                        disabled={isSubmitting || billingCycle === "trial"}
+                        className="h-9 text-xs bg-background"
+                      />
+                      {matchingMonthlyPlan && CYCLE_MONTHS[billingCycle] > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const suggested = Number(
+                              (Number(matchingMonthlyPlan.price) * CYCLE_MONTHS[billingCycle]).toFixed(2)
+                            )
+                            handleOriginalPriceChange(String(suggested))
+                          }}
+                          className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                        >
+                          <Zap className="h-3 w-3" />
+                          Fill ₹{Number(matchingMonthlyPlan.price).toLocaleString("en-IN")} ×{" "}
+                          {CYCLE_MONTHS[billingCycle]} = ₹
+                          {Number(
+                            (Number(matchingMonthlyPlan.price) * CYCLE_MONTHS[billingCycle]).toFixed(2)
+                          ).toLocaleString("en-IN")}
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground block">
+                          Leave blank if you don&apos;t want a strikethrough price.
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Box 2: Two-Way Discount % */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="discount_percent" className="text-xs font-semibold">
+                        Discount % (Auto-Calculator)
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="discount_percent"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          placeholder={
+                            parseFloat(originalPrice) > 0
+                              ? "Type % (e.g. 25)"
+                              : "Enter Regular Price first"
+                          }
+                          value={discountPercent}
+                          onChange={(e) => handleDiscountPercentChange(e.target.value)}
+                          disabled={isSubmitting || billingCycle === "trial" || !(parseFloat(originalPrice) > 0)}
+                          className="h-9 text-xs pr-7 bg-background"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground pointer-events-none">
+                          %
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground block">
+                        Type % to calculate Net Price, or type Net Price directly.
+                      </span>
+                    </div>
+
+                    {/* Box 3: Final Net Selling Price */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="price" className="text-xs font-semibold">
+                        Final Net Selling Price (₹ — Zero GST) <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="e.g. 1500"
+                        value={price}
+                        onChange={(e) => handleSellingPriceChange(e.target.value)}
+                        disabled={isSubmitting}
+                        className="h-9 text-xs font-semibold bg-background"
+                        required
+                      />
+                      <span className="text-[10px] text-muted-foreground block">
+                        Exact flat amount charged to schools at checkout.
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Live Pricing Card Preview */}
+                  {(() => {
+                    const origNum = parseFloat(originalPrice)
+                    const sellNum = parseFloat(price)
+                    const hasValidSell = price !== "" && !isNaN(sellNum) && sellNum >= 0
+                    const hasValidOrig = originalPrice.trim() !== "" && !isNaN(origNum) && origNum > 0
+                    const isInvalidOrig = hasValidOrig && hasValidSell && origNum < sellNum
+                    const hasDiscount = hasValidOrig && hasValidSell && origNum > sellNum
+                    const savedAmt = hasDiscount ? Number((origNum - sellNum).toFixed(2)) : 0
+                    const savedPct = hasDiscount ? Math.round(((origNum - sellNum) / origNum) * 100) : 0
+
+                    if (isInvalidOrig) {
+                      return (
+                        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive font-medium">
+                          Actual / Regular Price (₹{origNum.toLocaleString("en-IN")}) cannot be lower than Final Net Selling Price (₹{sellNum.toLocaleString("en-IN")}).
+                        </div>
+                      )
+                    }
+
+                    if (!hasValidSell) return null
+
+                    return (
+                      <div className="flex items-center justify-between flex-wrap gap-2 rounded-lg border border-border/70 bg-background px-3.5 py-2.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+                            Card Preview:
+                          </span>
+                          {hasDiscount && (
+                            <span className="text-sm font-semibold text-muted-foreground line-through">
+                              ₹{origNum.toLocaleString("en-IN")}
+                            </span>
+                          )}
+                          <span className="text-base font-extrabold text-foreground">
+                            {billingCycle === "trial" || sellNum === 0
+                              ? "Free"
+                              : `₹${sellNum.toLocaleString("en-IN")}`}
+                          </span>
+                          {billingCycle !== "trial" && sellNum > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              / {CYCLE_SHORT_SUFFIX[billingCycle]}
+                            </span>
+                          )}
+                          {hasDiscount && (
+                            <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[11px] font-bold gap-1">
+                              <Tag className="h-3 w-3" />
+                              {savedPct}% OFF • Save ₹{savedAmt.toLocaleString("en-IN")}
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-muted-foreground">
+                          {hasDiscount
+                            ? "Strikethrough & discount badge active on pricing cards"
+                            : "Standard price display (no discount badge)"}
+                        </span>
+                      </div>
+                    )
+                  })()}
+                </div>
+
+                {/* Student Capacity Limit */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="max_students" className="text-xs font-semibold">
+                    Max Students Capacity
+                  </Label>
+                  <Input
+                    id="max_students"
+                    type="number"
+                    min="0"
+                    placeholder="0 (Unlimited)"
+                    value={maxStudents}
+                    onChange={(e) =>
+                      setMaxStudents(e.target.value === "" ? "" : Math.max(0, Number(e.target.value)))
+                    }
+                    disabled={isSubmitting}
+                    className="h-9 text-xs"
+                  />
                   <span className="text-[10px] text-muted-foreground">
-                    Select either Monthly or Annually billing schedule.
+                    Enter 0 for Unlimited students capacity.
                   </span>
                 </div>
 
-                {/* Free Trial Days - Dynamic Field */}
+                {/* Included Cloud Storage */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="included_storage_gb" className="text-xs font-semibold">
+                    Included Cloud Storage (GB)
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="included_storage_gb"
+                      type="number"
+                      min="1"
+                      placeholder="5"
+                      value={includedStorageGb}
+                      onChange={(e) =>
+                        setIncludedStorageGb(
+                          e.target.value === "" ? "" : Math.max(1, Number(e.target.value))
+                        )
+                      }
+                      disabled={isSubmitting}
+                      className="h-9 text-xs pr-8"
+                    />
+                    <HardDrive className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60 pointer-events-none" />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">
+                    Base cloud storage bundled with this plan.
+                  </span>
+                </div>
+
+                {/* Free Trial Days */}
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-1.5">
                     <Label htmlFor="free_trial_days" className="text-xs font-semibold">
@@ -411,55 +802,61 @@ export default function EditPackage() {
                     <Clock className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60 pointer-events-none" />
                   </div>
                   <span className="text-[10px] text-muted-foreground">
-                    Number of free trial days (e.g., 0 for no trial, 7, 14, 30 days).
-                  </span>
-                </div>
-
-                {/* Student Capacity Limit */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="max_students" className="text-xs font-semibold">
-                    Max Students Capacity
-                  </Label>
-                  <Input
-                    id="max_students"
-                    type="number"
-                    min="0"
-                    placeholder="0 (Unlimited)"
-                    value={maxStudents}
-                    onChange={(e) =>
-                      setMaxStudents(e.target.value === "" ? "" : Number(e.target.value))
-                    }
-                    disabled={isSubmitting}
-                    className="h-9 text-xs"
-                  />
-                  <span className="text-[10px] text-muted-foreground">
-                    Enter 0 for unlimited students capacity.
+                    Number of free trial days (0 for paid plans, or e.g. 14, 30).
                   </span>
                 </div>
               </div>
 
-              {/* Plan Status Toggle */}
-              <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 bg-muted/20">
-                <div className="space-y-0.5">
-                  <div className="text-xs font-semibold text-foreground">Plan Status</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Active plans can be selected and subscribed by schools during registration.
+              {/* Toggles Row: Plan Status & Most Popular */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 bg-muted/20">
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-semibold text-foreground">Plan Active Status</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Active plans can be selected and subscribed by schools.
+                    </div>
                   </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setStatus(status === 1 ? 0 : 1)}
-                  disabled={isSubmitting}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                    status === 1 ? "bg-emerald-500" : "bg-muted-foreground/30"
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow-lg ring-0 transition duration-200 ease-in-out ${
-                      status === 1 ? "translate-x-5" : "translate-x-0"
+                  <button
+                    type="button"
+                    onClick={() => setStatus(status === 1 ? 0 : 1)}
+                    disabled={isSubmitting}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                      status === 1 ? "bg-emerald-500" : "bg-muted-foreground/30"
                     }`}
-                  />
-                </button>
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        status === 1 ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 bg-muted/20">
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Star className="h-3.5 w-3.5 text-amber-500" />
+                      Highlight as "Most Popular"
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Displays a recommended badge on public pricing & school upgrade cards.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsPopular(isPopular === 1 ? 0 : 1)}
+                    disabled={isSubmitting}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                      isPopular === 1 ? "bg-amber-500" : "bg-muted-foreground/30"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        isPopular === 1 ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
 
               {/* Plan Description */}
@@ -469,8 +866,8 @@ export default function EditPackage() {
                 </Label>
                 <textarea
                   id="description"
-                  rows={3}
-                  placeholder="Brief description of who this plan is tailored for (optional)..."
+                  rows={2}
+                  placeholder="Brief description of who this plan is tailored for..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   disabled={isSubmitting}
@@ -480,7 +877,7 @@ export default function EditPackage() {
             </CardContent>
           </Card>
 
-          {/* SECTION 2: Features & Add-ons Repeater Card */}
+          {/* SECTION 2: Custom Features Repeater Card */}
           <Card className="border-border/70 shadow-sm">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -491,14 +888,14 @@ export default function EditPackage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-base font-semibold">
-                        2. Features & Add-ons Repeater
+                        2. Plan Highlights & Features
                       </CardTitle>
                       <Badge variant="secondary" className="text-[11px] font-mono">
-                        {items.length} {items.length === 1 ? "item" : "items"}
+                        {items.length} {items.length === 1 ? "feature" : "features"}
                       </Badge>
                     </div>
                     <CardDescription className="text-xs mt-0.5">
-                      Dynamically add features, capabilities, or included modules with Item Name and Description.
+                      Dynamically manage custom feature bullet points displayed on plan comparison cards.
                     </CardDescription>
                   </div>
                 </div>
@@ -512,7 +909,7 @@ export default function EditPackage() {
                   className="h-8 text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Add Item
+                  Add Feature
                 </Button>
               </div>
             </CardHeader>
@@ -522,10 +919,10 @@ export default function EditPackage() {
                 <div className="flex flex-col items-center justify-center p-8 rounded-xl border border-dashed border-border/70 text-center bg-muted/10 space-y-2">
                   <Sparkles className="h-8 w-8 text-muted-foreground/40" />
                   <div className="text-xs font-semibold text-foreground">
-                    No features or add-ons added yet
+                    No additional custom features added
                   </div>
                   <p className="text-[11px] text-muted-foreground max-w-sm">
-                    Click the button below to add included features, services, or add-ons to this plan.
+                    Click below to add extra feature bullet points to this plan.
                   </p>
                   <Button
                     type="button"
@@ -535,7 +932,7 @@ export default function EditPackage() {
                     className="h-8 text-xs font-semibold gap-1.5 cursor-pointer mt-1"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    Add First Item
+                    Add First Feature
                   </Button>
                 </div>
               ) : (
@@ -546,7 +943,7 @@ export default function EditPackage() {
                         <TableRow>
                           <TableHead className="w-12 pl-4 text-center font-semibold">#</TableHead>
                           <TableHead className="min-w-[240px] font-semibold">
-                            Item Name <span className="text-destructive">*</span>
+                            Feature Name <span className="text-destructive">*</span>
                           </TableHead>
                           <TableHead className="min-w-[320px] font-semibold">
                             Description
@@ -557,12 +954,9 @@ export default function EditPackage() {
                       <TableBody>
                         {items.map((item, idx) => (
                           <TableRow key={idx}>
-                            {/* Index */}
                             <TableCell className="pl-4 text-center text-muted-foreground font-mono font-medium text-xs">
                               {idx + 1}
                             </TableCell>
-
-                            {/* Item Name */}
                             <TableCell className="min-w-[240px]">
                               <Input
                                 placeholder="e.g. Student Attendance & Leave Management"
@@ -573,19 +967,15 @@ export default function EditPackage() {
                                 required
                               />
                             </TableCell>
-
-                            {/* Description */}
                             <TableCell className="min-w-[320px]">
                               <Input
-                                placeholder="e.g. Daily digital attendance, RFID tap sync, and instant SMS parent alerts"
+                                placeholder="e.g. Daily digital attendance & parent alerts"
                                 value={item.description}
                                 onChange={(e) => handleUpdateItem(idx, "description", e.target.value)}
                                 disabled={isSubmitting}
                                 className="h-8 text-xs"
                               />
                             </TableCell>
-
-                            {/* Delete Action */}
                             <TableCell className="text-center pr-4">
                               <Button
                                 type="button"
@@ -594,7 +984,7 @@ export default function EditPackage() {
                                 onClick={() => handleRemoveItem(idx)}
                                 disabled={isSubmitting}
                                 className="h-7 w-7 text-destructive hover:bg-destructive/10 cursor-pointer"
-                                title="Delete item row"
+                                title="Delete feature row"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
@@ -615,7 +1005,7 @@ export default function EditPackage() {
                       className="h-7 text-xs font-medium gap-1 text-primary hover:text-primary cursor-pointer"
                     >
                       <Plus className="h-3 w-3" />
-                      Add Another Item
+                      Add Another Feature
                     </Button>
                   </div>
                 </div>

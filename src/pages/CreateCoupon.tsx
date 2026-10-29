@@ -1,8 +1,9 @@
 import { useState, useId } from "react"
 import { useNavigate } from "react-router"
 import { useAppSelector } from "@/store/store"
+import { useDraftState, clearFormDraft } from "@/hooks/useFormDraft"
 import { createCouponApi } from "@/services/couponService"
-import type { DiscountType } from "@/types/coupon"
+import type { DiscountType, CouponScope } from "@/types/coupon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,7 +13,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card"
 import {
   Select,
@@ -32,6 +32,7 @@ import {
   Sparkles,
   Layers,
   Calculator,
+  ShieldCheck,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -55,30 +56,55 @@ const DISCOUNT_TYPE_LABELS: Record<DiscountType, string> = {
   fixed: "Fixed Flat Discount (₹)",
 }
 
+const SCOPE_OPTIONS: { value: CouponScope; label: string }[] = [
+  {
+    value: "plan_only",
+    label: "Software Plan Only (Protects Hardware & SMS Costs) — Recommended",
+  },
+  {
+    value: "software_and_storage",
+    label: "Software Plan + Cloud Storage Add-ons",
+  },
+  {
+    value: "all",
+    label: "Entire Order Cart (Software + Hardware + Credits)",
+  },
+]
+
+const SCOPE_LABELS: Record<CouponScope, string> = {
+  plan_only: "Software Plan Only (Recommended)",
+  software_and_storage: "Software Plan + Cloud Storage",
+  all: "Entire Order Cart",
+}
+
+const FORM_DRAFT_KEY = "create_coupon"
+
 export default function CreateCoupon() {
   const navigate = useNavigate()
   const token = useAppSelector((state) => state.auth.token)
   const isSubmittingId = useId()
 
-  // Clean form state without mock or fallback dummy data
-  const [code, setCode] = useState("")
-  const [description, setDescription] = useState("")
-  const [discountType, setDiscountType] = useState<DiscountType>("percentage")
-  const [discountValue, setDiscountValue] = useState("")
-  const [minOrderAmount, setMinOrderAmount] = useState("")
-  const [maxDiscountAmount, setMaxDiscountAmount] = useState("")
-  const [startDate, setStartDate] = useState("")
-  const [endDate, setEndDate] = useState("")
-  const [maxUses, setMaxUses] = useState("")
-  const [maxUsesPerUser, setMaxUsesPerUser] = useState("1")
-  const [status, setStatus] = useState<1 | 0>(1)
+  const [code, setCode] = useDraftState(FORM_DRAFT_KEY, "code", "")
+  const [description, setDescription] = useDraftState(FORM_DRAFT_KEY, "description", "")
+  const [discountType, setDiscountType] = useDraftState<DiscountType>(FORM_DRAFT_KEY, "discountType", "percentage")
+  const [discountValue, setDiscountValue] = useDraftState(FORM_DRAFT_KEY, "discountValue", "")
+  const [applicableScope, setApplicableScope] = useDraftState<CouponScope>(FORM_DRAFT_KEY, "applicableScope", "plan_only")
+  const [minOrderAmount, setMinOrderAmount] = useDraftState(FORM_DRAFT_KEY, "minOrderAmount", "")
+  const [maxDiscountAmount, setMaxDiscountAmount] = useDraftState(FORM_DRAFT_KEY, "maxDiscountAmount", "")
+  const [startDate, setStartDate] = useDraftState(FORM_DRAFT_KEY, "startDate", "")
+  const [endDate, setEndDate] = useDraftState(FORM_DRAFT_KEY, "endDate", "")
+  const [maxUses, setMaxUses] = useDraftState(FORM_DRAFT_KEY, "maxUses", "")
+  const [maxUsesPerUser, setMaxUsesPerUser] = useDraftState(FORM_DRAFT_KEY, "maxUsesPerUser", "1")
+  const [status, setStatus] = useDraftState<1 | 0>(FORM_DRAFT_KEY, "status", 1)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [sampleOrderAmount, setSampleOrderAmount] = useDraftState<string>(FORM_DRAFT_KEY, "sampleOrderAmount", "5000")
 
-  // Interactive Live Calculator Test Value
-  const [sampleOrderAmount, setSampleOrderAmount] = useState<string>("5000")
+  const handleCancel = () => {
+    clearFormDraft(FORM_DRAFT_KEY)
+    navigate("/coupons")
+  }
 
-  // Live preview calculations
   const numericDiscountVal = parseFloat(discountValue) || 0
   const numericMinOrder = parseFloat(minOrderAmount) || 0
   const numericMaxCap = maxDiscountAmount ? parseFloat(maxDiscountAmount) : null
@@ -89,7 +115,7 @@ export default function CreateCoupon() {
 
   if (numericSampleOrder > 0) {
     if (numericMinOrder > 0 && numericSampleOrder < numericMinOrder) {
-      simulatedEligibilityError = `Order below min ₹${numericMinOrder.toLocaleString("en-IN")}`
+      simulatedEligibilityError = `Eligible subtotal below min ₹${numericMinOrder.toLocaleString("en-IN")}`
     } else {
       if (discountType === "percentage") {
         simulatedDiscount = (numericSampleOrder * numericDiscountVal) / 100
@@ -160,6 +186,7 @@ export default function CreateCoupon() {
         description: description.trim() || undefined,
         discount_type: discountType,
         discount_value: parseFloat(discountValue),
+        applicable_scope: applicableScope,
         min_order_amount: minOrderAmount ? parseFloat(minOrderAmount) : 0,
         max_discount_amount:
           discountType === "percentage" && maxDiscountAmount
@@ -173,6 +200,7 @@ export default function CreateCoupon() {
       })
 
       toast.success(`Coupon "${cleanCode}" created successfully!`)
+      clearFormDraft(FORM_DRAFT_KEY)
       navigate("/coupons")
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : "Failed to create coupon."
@@ -202,7 +230,6 @@ export default function CreateCoupon() {
               <Ticket className="h-6 w-6 text-primary" />
               <span>Create Promotional Coupon</span>
             </h1>
-            
           </div>
         </div>
 
@@ -210,7 +237,7 @@ export default function CreateCoupon() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => navigate("/coupons")}
+            onClick={handleCancel}
             disabled={isSubmitting}
             className="cursor-pointer h-9 text-xs"
           >
@@ -238,7 +265,6 @@ export default function CreateCoupon() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Form Inputs */}
         <div className="lg:col-span-2">
           <form id={isSubmittingId} onSubmit={handleSubmit} className="space-y-6">
             {/* Card 1: Core Code & Discount Rules */}
@@ -251,7 +277,6 @@ export default function CreateCoupon() {
               </CardHeader>
               <CardContent className="p-5 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Coupon Code */}
                   <div className="space-y-1.5 sm:col-span-2">
                     <Label htmlFor="coupon-code" className="text-xs font-semibold">
                       Coupon Code <span className="text-destructive">*</span>
@@ -269,7 +294,6 @@ export default function CreateCoupon() {
                     </div>
                   </div>
 
-                  {/* Discount Type */}
                   <div className="space-y-1.5">
                     <Label htmlFor="discount-type" className="text-xs font-semibold">
                       Discount Type <span className="text-destructive">*</span>
@@ -297,7 +321,6 @@ export default function CreateCoupon() {
                     </Select>
                   </div>
 
-                  {/* Discount Value */}
                   <div className="space-y-1.5">
                     <Label htmlFor="discount-value" className="text-xs font-semibold">
                       {discountType === "percentage" ? "Discount Rate (%)" : "Flat Amount (₹)"}{" "}
@@ -322,11 +345,41 @@ export default function CreateCoupon() {
                         <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       )}
                     </div>
-                    
+                  </div>
+
+                  {/* Applicable Discount Scope (Cost Protection) */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="applicable-scope" className="text-xs font-semibold flex items-center gap-1.5">
+                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                      Applicable Discount Scope (Margin Protection)
+                    </Label>
+                    <Select
+                      value={applicableScope}
+                      onValueChange={(val) => {
+                        if (val) setApplicableScope(val as CouponScope)
+                      }}
+                      items={SCOPE_OPTIONS}
+                      itemToStringLabel={(val) =>
+                        SCOPE_LABELS[val as CouponScope] || String(val || "")
+                      }
+                    >
+                      <SelectTrigger id="applicable-scope" className="w-full">
+                        <SelectValue placeholder="Select applicable scope" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SCOPE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value} label={opt.label}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      "Software Plan Only" prevents promotional SaaS coupons from discounting physical RFID cards, biometric machines, or prepaid SMS credits below cost.
+                    </p>
                   </div>
                 </div>
 
-                {/* Description */}
                 <div className="space-y-1.5">
                   <Label htmlFor="description" className="text-xs font-semibold">
                     Description / Marketing Note (Optional)
@@ -352,10 +405,9 @@ export default function CreateCoupon() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Min Order Amount */}
                 <div className="space-y-1.5">
                   <Label htmlFor="min-order-amount" className="text-xs font-semibold">
-                    Minimum Order Amount (₹)
+                    Minimum Eligible Amount (₹)
                   </Label>
                   <div className="relative">
                     <Input
@@ -372,7 +424,6 @@ export default function CreateCoupon() {
                   </div>
                 </div>
 
-                {/* Max Discount Amount */}
                 <div className="space-y-1.5">
                   <Label htmlFor="max-discount-amount" className="text-xs font-semibold">
                     Maximum Discount Cap (₹)
@@ -404,14 +455,12 @@ export default function CreateCoupon() {
                   <Calendar className="h-4 w-4 text-primary" />
                   <span>Validity Period & Usage Limits</span>
                 </CardTitle>
-                
               </CardHeader>
               <CardContent className="p-5 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Start Date */}
                   <div className="space-y-1.5">
                     <Label htmlFor="start-date" className="text-xs font-semibold">
-                      Start Date
+                      Start Date (IST)
                     </Label>
                     <Input
                       id="start-date"
@@ -421,10 +470,9 @@ export default function CreateCoupon() {
                     />
                   </div>
 
-                  {/* End Date */}
                   <div className="space-y-1.5">
                     <Label htmlFor="end-date" className="text-xs font-semibold">
-                      Expiry Date
+                      Expiry Date (IST)
                     </Label>
                     <Input
                       id="end-date"
@@ -434,10 +482,9 @@ export default function CreateCoupon() {
                     />
                   </div>
 
-                  {/* Max Uses (Total Global Limit) */}
                   <div className="space-y-1.5">
                     <Label htmlFor="max-uses" className="text-xs font-semibold">
-                      Total Usage Limit (All Users)
+                      Total Usage Limit (All Schools)
                     </Label>
                     <Input
                       id="max-uses"
@@ -450,10 +497,9 @@ export default function CreateCoupon() {
                     />
                   </div>
 
-                  {/* Max Uses Per User (Strict Integer Count) */}
                   <div className="space-y-1.5">
                     <Label htmlFor="max-uses-per-user" className="text-xs font-semibold">
-                      Usage Limit Per User <span className="text-destructive">*</span>
+                      Usage Limit Per School <span className="text-destructive">*</span>
                     </Label>
                     <Input
                       id="max-uses-per-user"
@@ -467,7 +513,6 @@ export default function CreateCoupon() {
                     />
                   </div>
 
-                  {/* Initial Status */}
                   <div className="space-y-1.5 sm:col-span-2">
                     <Label htmlFor="status-select" className="text-xs font-semibold">
                       Initial Status
@@ -498,12 +543,11 @@ export default function CreateCoupon() {
               </CardContent>
             </Card>
 
-            {/* Bottom Actions */}
             <div className="flex items-center justify-end gap-3 pt-2">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate("/coupons")}
+                onClick={handleCancel}
                 disabled={isSubmitting}
                 className="cursor-pointer"
               >
@@ -540,13 +584,12 @@ export default function CreateCoupon() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5 space-y-5">
-              {/* Badge Preview */}
               <div className="p-4 rounded-xl border border-dashed border-primary/40 bg-primary/5 flex flex-col items-center justify-center text-center space-y-2">
                 <span className="font-mono text-xl font-bold tracking-widest px-3 py-1 rounded-lg bg-background border border-border shadow-xs text-primary">
                   {code.trim() ? code.trim().toUpperCase() : "COUPONCODE"}
                 </span>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap justify-center">
                   <Badge variant="secondary" className="font-bold text-xs gap-1 py-0.5 px-2">
                     {discountType === "percentage" ? (
                       <Percent className="h-3 w-3 text-primary" />
@@ -575,10 +618,15 @@ export default function CreateCoupon() {
                 </p>
               </div>
 
-              {/* Conditions Summary */}
               <div className="space-y-2 text-xs border-t border-border/60 pt-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Min Order Amount:</span>
+                  <span className="text-muted-foreground">Applies To:</span>
+                  <span className="font-semibold text-primary">
+                    {SCOPE_LABELS[applicableScope]}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Min Eligible Amount:</span>
                   <span className="font-semibold text-foreground">
                     {numericMinOrder > 0 ? `₹${numericMinOrder.toLocaleString("en-IN")}` : "None"}
                   </span>
@@ -606,24 +654,23 @@ export default function CreateCoupon() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Limit Per User:</span>
+                  <span className="text-muted-foreground">Limit Per School:</span>
                   <span className="font-semibold text-primary">
                     {parseInt(maxUsesPerUser, 10) || 1}{" "}
-                    {(parseInt(maxUsesPerUser, 10) || 1) === 1 ? "time" : "times"} / user
+                    {(parseInt(maxUsesPerUser, 10) || 1) === 1 ? "time" : "times"} / school
                   </span>
                 </div>
               </div>
 
-              {/* Interactive Calculation Simulator */}
               <div className="p-3.5 rounded-lg border border-border bg-muted/30 space-y-3">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                   <Calculator className="h-3.5 w-3.5 text-primary" />
-                  <span>Interactive Test Simulator</span>
+                  <span>Interactive Zero-GST Simulator</span>
                 </div>
 
                 <div className="space-y-1">
                   <Label htmlFor="sample-order" className="text-[11px] text-muted-foreground">
-                    Test Order Subtotal (₹)
+                    Test Eligible Subtotal (₹)
                   </Label>
                   <Input
                     id="sample-order"
@@ -651,7 +698,7 @@ export default function CreateCoupon() {
                       <span>-₹{simulatedDiscount.toLocaleString("en-IN")}</span>
                     </div>
                     <div className="flex justify-between font-bold text-foreground pt-1 border-t border-border/40">
-                      <span>Final Net Total:</span>
+                      <span>Final Net Total (Zero GST):</span>
                       <span>₹{simulatedFinalPrice.toLocaleString("en-IN")}</span>
                     </div>
                   </div>

@@ -1,6 +1,7 @@
 import { useState, useRef } from "react"
 import { useNavigate } from "react-router"
 import { useAppSelector } from "@/store/store"
+import { useDraftState, clearFormDraft } from "@/hooks/useFormDraft"
 import { createBankAccountApi } from "@/services/bankAccountService"
 import type { CreateBankAccountPayload } from "@/types/bankAccount"
 import { Button } from "@/components/ui/button"
@@ -40,6 +41,25 @@ const ACCOUNT_TYPES = [
   { value: "Overdraft", label: "Overdraft / Cash Credit" },
 ]
 
+const FORM_DRAFT_KEY = "create_bank_account"
+
+const INITIAL_BANK_FORM: CreateBankAccountPayload = {
+  account_title: "",
+  beneficiary_name: "",
+  account_number: "",
+  bank_name: "",
+  branch_name: "",
+  ifsc_code: "",
+  account_type: "Current",
+  upi_id: "",
+  swift_code: "",
+  instructions: "",
+  qr_code_image: "",
+  qr_code_file: null,
+  is_default: false,
+  status: true,
+}
+
 export default function CreateBankAccount() {
   const navigate = useNavigate()
   const token = useAppSelector((state) => state.auth.token)
@@ -48,22 +68,21 @@ export default function CreateBankAccount() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [filePreview, setFilePreview] = useState<string | null>(null)
 
-  const [formData, setFormData] = useState<CreateBankAccountPayload>({
-    account_title: "",
-    beneficiary_name: "",
-    account_number: "",
-    bank_name: "",
-    branch_name: "",
-    ifsc_code: "",
-    account_type: "Current",
-    upi_id: "",
-    swift_code: "",
-    instructions: "",
-    qr_code_image: "",
-    qr_code_file: null,
-    is_default: false,
-    status: true,
-  })
+  const [formData, setFormData] = useDraftState<CreateBankAccountPayload>(
+    FORM_DRAFT_KEY,
+    "formData",
+    INITIAL_BANK_FORM,
+    (loaded) => ({
+      ...INITIAL_BANK_FORM,
+      ...loaded,
+      qr_code_file: null,
+    })
+  )
+
+  const handleCancel = () => {
+    clearFormDraft(FORM_DRAFT_KEY)
+    navigate("/bank-accounts")
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -142,6 +161,7 @@ export default function CreateBankAccount() {
     try {
       await createBankAccountApi(token, formData)
       toast.success("Bank account created successfully!")
+      clearFormDraft(FORM_DRAFT_KEY)
       navigate("/bank-accounts")
     } catch (err: any) {
       toast.error(err.message || "Failed to create bank account.")
@@ -177,7 +197,7 @@ export default function CreateBankAccount() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => navigate("/bank-accounts")}
+            onClick={handleCancel}
             disabled={isSubmitting}
             className="cursor-pointer h-9 text-xs"
           >
@@ -502,7 +522,7 @@ export default function CreateBankAccount() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => navigate("/bank-accounts")}
+            onClick={handleCancel}
             disabled={isSubmitting}
             className="cursor-pointer"
           >

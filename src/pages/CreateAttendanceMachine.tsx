@@ -1,6 +1,7 @@
 import { useState, useRef } from "react"
 import { useNavigate } from "react-router"
 import { useAppSelector } from "@/store/store"
+import { useDraftState, clearFormDraft } from "@/hooks/useFormDraft"
 import { createAttendanceMachineApi } from "@/services/attendanceMachineService"
 import type { CreateAttendanceMachinePayload, MachineType } from "@/types/attendanceMachine"
 import { Button } from "@/components/ui/button"
@@ -74,6 +75,8 @@ const CONNECTIVITY_PRESETS = [
   { value: "Wi-Fi only", label: "Wi-Fi only" },
 ]
 
+const FORM_DRAFT_KEY = "create_attendance_machine"
+
 export default function CreateAttendanceMachine() {
   const navigate = useNavigate()
   const token = useAppSelector((state) => state.auth.token)
@@ -85,18 +88,23 @@ export default function CreateAttendanceMachine() {
   const [filePreview, setFilePreview] = useState<string | null>(null)
 
   // Form State
-  const [machineName, setMachineName] = useState("")
-  const [modelNumber, setModelNumber] = useState("")
-  const [brand, setBrand] = useState("")
-  const [machineType, setMachineType] = useState<MachineType>("hybrid")
-  const [connectivity, setConnectivity] = useState("LAN, Wi-Fi")
-  const [userCapacity, setUserCapacity] = useState("1000")
-  const [logCapacity, setLogCapacity] = useState("100000")
-  const [pushProtocol, setPushProtocol] = useState("ADMS / Cloud Push")
-  const [unitPrice, setUnitPrice] = useState("")
-  const [amcPrice, setAmcPrice] = useState("")
-  const [status, setStatus] = useState<number>(1)
-  const [specifications, setSpecifications] = useState("")
+  const [machineName, setMachineName] = useDraftState(FORM_DRAFT_KEY, "machineName", "")
+  const [modelNumber, setModelNumber] = useDraftState(FORM_DRAFT_KEY, "modelNumber", "")
+  const [brand, setBrand] = useDraftState(FORM_DRAFT_KEY, "brand", "")
+  const [machineType, setMachineType] = useDraftState<MachineType>(FORM_DRAFT_KEY, "machineType", "hybrid")
+  const [connectivity, setConnectivity] = useDraftState(FORM_DRAFT_KEY, "connectivity", "LAN, Wi-Fi")
+  const [userCapacity, setUserCapacity] = useDraftState(FORM_DRAFT_KEY, "userCapacity", "1000")
+  const [logCapacity, setLogCapacity] = useDraftState(FORM_DRAFT_KEY, "logCapacity", "100000")
+  const [pushProtocol, setPushProtocol] = useDraftState(FORM_DRAFT_KEY, "pushProtocol", "ADMS / Cloud Push")
+  const [unitPrice, setUnitPrice] = useDraftState(FORM_DRAFT_KEY, "unitPrice", "")
+  const [amcPrice, setAmcPrice] = useDraftState(FORM_DRAFT_KEY, "amcPrice", "")
+  const [status, setStatus] = useDraftState<number>(FORM_DRAFT_KEY, "status", 1)
+  const [specifications, setSpecifications] = useDraftState(FORM_DRAFT_KEY, "specifications", "")
+
+  const handleCancel = () => {
+    clearFormDraft(FORM_DRAFT_KEY)
+    navigate("/attendance-machines")
+  }
 
   // Handle File Selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -173,6 +181,7 @@ export default function CreateAttendanceMachine() {
 
       const result = await createAttendanceMachineApi(token, payload)
       toast.success(`Attendance machine "${result.machine_name}" created successfully!`)
+      clearFormDraft(FORM_DRAFT_KEY)
       navigate("/attendance-machines")
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to create attendance machine."
@@ -579,7 +588,7 @@ export default function CreateAttendanceMachine() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => navigate("/attendance-machines")}
+            onClick={handleCancel}
             disabled={isSubmitting}
             className="cursor-pointer"
           >

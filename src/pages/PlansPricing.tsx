@@ -52,6 +52,9 @@ import {
   AlertCircle,
   CreditCard,
   Clock,
+  HardDrive,
+  Star,
+  Infinity as InfinityIcon,
 } from "lucide-react"
 
 const SEARCH_DEBOUNCE_MS = 400
@@ -62,12 +65,20 @@ const EMPTY_PACKAGE_COUNTS: PackageCounts = {
   active_items: 0,
 }
 
-/** Maps the UI status filter to the numeric value expected by the API. */
 const toStatusParam = (filter: string): number | undefined => {
   if (filter === "active") return 1
   if (filter === "inactive") return 0
   return undefined
 }
+
+const CYCLE_FILTER_TABS: { value: string; label: string }[] = [
+  { value: "all", label: "All Cycles" },
+  { value: "annual", label: "Annually" },
+  { value: "half_yearly", label: "Half-Yearly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "trial", label: "Trial" },
+]
 
 export default function PlansPricing() {
   const navigate = useNavigate()
@@ -78,36 +89,28 @@ export default function PlansPricing() {
   const canDeletePkg = can("packages", "can_delete")
   const canManagePkg = can("packages", "can_manage")
 
-  // Data & Loading state
   const [packages, setPackages] = useState<SubscriptionPackage[]>([])
   const [pagination, setPagination] = useState<PaginationMeta>(EMPTY_PAGINATION)
   const [counts, setCounts] = useState<PackageCounts>(EMPTY_PACKAGE_COUNTS)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // Filter & Search states
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [cycleFilter, setCycleFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [viewMode, setViewMode] = useState<"table" | "grid">("table")
 
-  // Pagination state
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
 
-  // Dialog state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [packageToDelete, setPackageToDelete] = useState<SubscriptionPackage | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Status toggle in-progress tracking
   const [togglingPackageId, setTogglingPackageId] = useState<number | null>(null)
-
-  // Guards against out-of-order responses when filters/pages change quickly
   const requestIdRef = useRef(0)
 
-  // Debounce search input; a new search always starts from page 1
   useEffect(() => {
     const trimmed = searchTerm.trim()
     if (trimmed === debouncedSearch) return
@@ -135,7 +138,6 @@ export default function PlansPricing() {
         if (requestId !== requestIdRef.current) return
 
         const meta = data?.pagination ?? EMPTY_PAGINATION
-        // Requested page no longer exists (e.g. rows removed elsewhere) — jump to the last valid page
         if (meta.total > 0 && page > meta.totalPages) {
           setPage(meta.totalPages)
           return
@@ -159,7 +161,6 @@ export default function PlansPricing() {
     loadPackages()
   }, [loadPackages])
 
-  // Filter / page-size changes always reset to the first page
   const handleCycleFilterChange = (value: string) => {
     if (value === cycleFilter) return
     setCycleFilter(value)
@@ -189,7 +190,6 @@ export default function PlansPricing() {
   const hasActiveFilters =
     debouncedSearch !== "" || searchTerm.trim() !== "" || cycleFilter !== "all" || statusFilter !== "all"
 
-  // Status toggle handler
   const handleToggleStatus = async (pkg: SubscriptionPackage) => {
     if (!token || togglingPackageId !== null) return
     const newStatus = pkg.status === 1 ? 0 : 1
@@ -201,7 +201,6 @@ export default function PlansPricing() {
         prev.map((p) => (p.id === pkg.id ? { ...p, status: newStatus } : p))
       )
       toast.success(`Plan "${pkg.plan_name}" ${newStatus === 1 ? "activated" : "deactivated"}.`)
-      // Refresh global counts (and the current page, in case a status filter is applied)
       loadPackages({ silent: true })
     } catch (err: unknown) {
       const error = err as Error
@@ -211,18 +210,16 @@ export default function PlansPricing() {
     }
   }
 
-  // Delete package handler
   const handleConfirmDelete = async () => {
     if (!token || !packageToDelete) return
     setIsDeleting(true)
 
     try {
-      await deletePackageApi(token, packageToDelete.id)
-      toast.success(`Package "${packageToDelete.plan_name}" deleted successfully.`)
+      const res = await deletePackageApi(token, packageToDelete.id)
+      toast.success(res.message || `Package "${packageToDelete.plan_name}" removed.`)
       setIsDeleteDialogOpen(false)
       setPackageToDelete(null)
       if (packages.length === 1 && page > 1) {
-        // Removed the last row on this page — step back one page (effect reloads)
         setPage(page - 1)
       } else {
         loadPackages()
@@ -235,7 +232,6 @@ export default function PlansPricing() {
     }
   }
 
-  // Format currency
   const formatPrice = (price: number | string, cycle: BillingCycle) => {
     const numPrice = Number(price) || 0
     if (cycle === "trial" || numPrice === 0) {
@@ -246,12 +242,12 @@ export default function PlansPricing() {
     switch (cycle) {
       case "annual":
         return `${formatted} / year`
-      case "monthly":
-        return `${formatted} / month`
+      case "half_yearly":
+        return `${formatted} / 6 mos`
       case "quarterly":
         return `${formatted} / quarter`
-      case "half_yearly":
-        return `${formatted} / 6 months`
+      case "monthly":
+        return `${formatted} / month`
       default:
         return formatted
     }
@@ -270,6 +266,10 @@ export default function PlansPricing() {
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
                 Plans & Packages
               </h1>
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                <InfinityIcon className="h-3.5 w-3.5 text-emerald-600" />
+                Dynamic SaaS tiers • Zero GST net pricing • Unlimited Teachers & Branches
+              </p>
             </div>
           </div>
         </div>
@@ -301,7 +301,6 @@ export default function PlansPricing() {
 
       {/* Metrics / KPI Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Packages */}
         <Card className="border-border/70 shadow-sm">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
@@ -316,7 +315,6 @@ export default function PlansPricing() {
           </CardContent>
         </Card>
 
-        {/* Active Plans */}
         <Card className="border-border/70 shadow-sm">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
@@ -331,7 +329,6 @@ export default function PlansPricing() {
           </CardContent>
         </Card>
 
-        {/* Bundled Features */}
         <Card className="border-border/70 shadow-sm">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
@@ -346,7 +343,6 @@ export default function PlansPricing() {
           </CardContent>
         </Card>
 
-        {/* Active Features */}
         <Card className="border-border/70 shadow-sm">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
@@ -383,7 +379,7 @@ export default function PlansPricing() {
       )}
 
       {/* Search and Filters Bar */}
-      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+      <div className="flex flex-col xl:flex-row gap-3 items-stretch xl:items-center justify-between">
         {/* Search */}
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -409,87 +405,38 @@ export default function PlansPricing() {
         <div className="flex flex-wrap items-center gap-2">
           {/* Status Filter */}
           <div className="flex items-center rounded-lg border border-border/60 p-0.5 bg-muted/30 text-xs">
-            <button
-              type="button"
-              onClick={() => handleStatusFilterChange("all")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
-                statusFilter === "all"
-                  ? "bg-background text-foreground shadow-xs font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              All Status
-            </button>
-            <button
-              type="button"
-              onClick={() => handleStatusFilterChange("active")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
-                statusFilter === "active"
-                  ? "bg-background text-foreground shadow-xs font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Active
-            </button>
-            <button
-              type="button"
-              onClick={() => handleStatusFilterChange("inactive")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
-                statusFilter === "inactive"
-                  ? "bg-background text-foreground shadow-xs font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Inactive
-            </button>
+            {(["all", "active", "inactive"] as const).map((st) => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => handleStatusFilterChange(st)}
+                className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer capitalize ${
+                  statusFilter === st
+                    ? "bg-background text-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {st === "all" ? "All Status" : st}
+              </button>
+            ))}
           </div>
 
-          {/* Billing Cycle Filter */}
-          <div className="flex items-center rounded-lg border border-border/60 p-0.5 bg-muted/30 text-xs">
-            <button
-              type="button"
-              onClick={() => handleCycleFilterChange("all")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
-                cycleFilter === "all"
-                  ? "bg-background text-foreground shadow-xs font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              All Cycles
-            </button>
-            <button
-              type="button"
-              onClick={() => handleCycleFilterChange("annual")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
-                cycleFilter === "annual"
-                  ? "bg-background text-foreground shadow-xs font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Annually
-            </button>
-            <button
-              type="button"
-              onClick={() => handleCycleFilterChange("monthly")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
-                cycleFilter === "monthly"
-                  ? "bg-background text-foreground shadow-xs font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              type="button"
-              onClick={() => handleCycleFilterChange("trial")}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
-                cycleFilter === "trial"
-                  ? "bg-background text-foreground shadow-xs font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Trial
-            </button>
+          {/* All 5 Billing Cycles Filter */}
+          <div className="flex flex-wrap items-center rounded-lg border border-border/60 p-0.5 bg-muted/30 text-xs">
+            {CYCLE_FILTER_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => handleCycleFilterChange(tab.value)}
+                className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                  cycleFilter === tab.value
+                    ? "bg-background text-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
           {/* View Mode Toggle */}
@@ -528,11 +475,10 @@ export default function PlansPricing() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead className="w-[240px]">Plan Name & Code</TableHead>
+                <TableHead className="w-[260px]">Plan & Tier Hierarchy</TableHead>
                 <TableHead>Billing Cycle</TableHead>
-                <TableHead>Base Price</TableHead>
-                <TableHead>Max Students</TableHead>
-                <TableHead>Free Trial</TableHead>
+                <TableHead>Net Price (Zero GST)</TableHead>
+                <TableHead>Quotas & Storage</TableHead>
                 <TableHead>Features</TableHead>
                 <TableHead className="text-right">Status / Actions</TableHead>
               </TableRow>
@@ -545,29 +491,16 @@ export default function PlansPricing() {
                       <Skeleton className="h-5 w-32 mb-1" />
                       <Skeleton className="h-3 w-24" />
                     </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-5 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-5 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-5 w-16" />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Skeleton className="h-6 w-24 ml-auto" />
-                    </TableCell>
+                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-6 w-24 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : packages.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-48 text-center">
+                  <TableCell colSpan={6} className="h-48 text-center">
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
                         <Package className="h-6 w-6" />
@@ -607,58 +540,83 @@ export default function PlansPricing() {
                   const isToggling = togglingPackageId === pkg.id
                   return (
                     <TableRow key={pkg.id} className="group">
-                      {/* Plan Name & Code */}
+                      {/* Plan & Tier */}
                       <TableCell>
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="secondary" className="text-[10px] font-mono px-1.5 py-0 h-4">
+                              Tier {pkg.tier_rank || 1}
+                            </Badge>
                             <span className="font-semibold text-sm text-foreground">
                               {pkg.plan_name}
                             </span>
+                            {Number(pkg.is_popular) === 1 && (
+                              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[10px] gap-0.5 py-0 h-4">
+                                <Star className="h-2.5 w-2.5 fill-current" />
+                                Popular
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 tracking-wider">
                               {pkg.plan_code}
                             </span>
+                            {pkg.free_trial_days && pkg.free_trial_days > 0 ? (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] py-0 h-4 border-emerald-500/30 text-emerald-600 bg-emerald-500/10"
+                              >
+                                {pkg.free_trial_days}d Trial
+                              </Badge>
+                            ) : null}
                           </div>
-                          {pkg.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-1 max-w-xs">
-                              {pkg.description}
-                            </p>
-                          )}
                         </div>
                       </TableCell>
 
                       {/* Billing Cycle */}
                       <TableCell>
                         <Badge variant="outline" className="text-xs capitalize">
-                          {pkg.billing_cycle.replace("_", " ")}
+                          {pkg.billing_cycle.replace("_", "-")}
                         </Badge>
                       </TableCell>
 
                       {/* Base Price */}
                       <TableCell>
-                        <span className="font-bold text-xs text-foreground">
-                          {formatPrice(pkg.price, pkg.billing_cycle)}
-                        </span>
+                        <div className="space-y-0.5">
+                          {Number(pkg.original_price) > Number(pkg.price) && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] text-muted-foreground line-through">
+                                ₹{Number(pkg.original_price).toLocaleString("en-IN")}
+                              </span>
+                              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-bold py-0 h-4">
+                                {Math.round(
+                                  ((Number(pkg.original_price) - Number(pkg.price)) /
+                                    Number(pkg.original_price)) *
+                                    100
+                                )}
+                                % OFF
+                              </Badge>
+                            </div>
+                          )}
+                          <span className="font-bold text-xs text-foreground block">
+                            {formatPrice(pkg.price, pkg.billing_cycle)}
+                          </span>
+                        </div>
                       </TableCell>
 
-                      {/* Max Students */}
-                      <TableCell className="text-xs text-foreground">
-                        {pkg.max_students > 0
-                          ? pkg.max_students.toLocaleString("en-IN")
-                          : "Unlimited"}
-                      </TableCell>
-
-                      {/* Free Trial */}
+                      {/* Quotas & Storage */}
                       <TableCell>
-                        {pkg.free_trial_days && pkg.free_trial_days > 0 ? (
-                          <Badge
-                            variant="outline"
-                            className="text-[11px] border-emerald-500/30 text-emerald-600 bg-emerald-500/10"
-                          >
-                            {pkg.free_trial_days} Days
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
+                        <div className="text-xs space-y-0.5">
+                          <div className="font-medium text-foreground">
+                            {pkg.max_students > 0
+                              ? `${pkg.max_students.toLocaleString("en-IN")} Students`
+                              : "Unlimited Students"}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+                            <HardDrive className="h-3 w-3 text-primary" />
+                            <span>{pkg.included_storage_gb ?? 0} GB Storage</span>
+                          </div>
+                        </div>
                       </TableCell>
 
                       {/* Attached Features */}
@@ -745,7 +703,6 @@ export default function PlansPricing() {
             </TableBody>
           </Table>
 
-          {/* Pagination Controls */}
           <DataPagination
             pagination={pagination}
             onPageChange={setPage}
@@ -790,24 +747,39 @@ export default function PlansPricing() {
                     key={pkg.id}
                     className={`relative flex flex-col rounded-2xl border transition-all duration-200 overflow-hidden ${
                       pkg.status === 1
-                        ? "border-border/80 bg-card hover:border-primary/40 hover:shadow-md"
+                        ? Number(pkg.is_popular) === 1
+                          ? "border-amber-500/60 bg-card shadow-sm hover:shadow-md"
+                          : "border-border/80 bg-card hover:border-primary/40 hover:shadow-md"
                         : "border-border/40 bg-muted/20 opacity-80"
                     }`}
                   >
                     <div className="p-5 pb-3 border-b border-border/50 space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="secondary" className="text-[10px] font-mono py-0 h-4">
+                              Tier {pkg.tier_rank || 1}
+                            </Badge>
                             <h3 className="text-lg font-bold tracking-tight text-foreground">
                               {pkg.plan_name}
                             </h3>
+                            {Number(pkg.is_popular) === 1 && (
+                              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[10px] gap-0.5 py-0 h-4">
+                                <Star className="h-2.5 w-2.5 fill-current" />
+                                Most Popular
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <Badge variant="outline" className="text-[10px] font-mono py-0 h-4">
                               {pkg.plan_code}
                             </Badge>
+                            <Badge variant="secondary" className="text-[10px] capitalize">
+                              {pkg.billing_cycle === "trial"
+                                ? "Free Trial"
+                                : `${pkg.billing_cycle.replace("_", "-")} plan`}
+                            </Badge>
                           </div>
-                          <Badge variant="secondary" className="text-[10px] capitalize">
-                            {pkg.billing_cycle === "trial" ? "Free Trial" : `${pkg.billing_cycle} plan`}
-                          </Badge>
                         </div>
 
                         <div className="flex items-center gap-1.5">
@@ -837,7 +809,22 @@ export default function PlansPricing() {
                         </div>
                       </div>
 
-                      <div className="pt-1">
+                      <div className="pt-1 space-y-1">
+                        {Number(pkg.original_price) > Number(pkg.price) && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-muted-foreground line-through">
+                              ₹{Number(pkg.original_price).toLocaleString("en-IN")}
+                            </span>
+                            <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-bold py-0 h-4">
+                              {Math.round(
+                                ((Number(pkg.original_price) - Number(pkg.price)) /
+                                  Number(pkg.original_price)) *
+                                  100
+                              )}
+                              % OFF
+                            </Badge>
+                          </div>
+                        )}
                         <div className="text-2xl font-black tracking-tight text-foreground">
                           {formatPrice(pkg.price, pkg.billing_cycle)}
                         </div>
@@ -850,31 +837,43 @@ export default function PlansPricing() {
                     </div>
 
                     <div className="p-5 flex-1 space-y-4">
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 border border-border/40">
-                          <GraduationCap className="h-4 w-4 text-primary shrink-0" />
-                          <div>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/40">
+                          <GraduationCap className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <div className="min-w-0">
                             <span className="text-[10px] text-muted-foreground block leading-tight">
                               Students
                             </span>
-                            <strong className="text-foreground font-semibold">
+                            <strong className="text-foreground font-semibold truncate block">
                               {pkg.max_students > 0
-                                ? `Max ${pkg.max_students.toLocaleString("en-IN")}`
+                                ? pkg.max_students.toLocaleString("en-IN")
                                 : "Unlimited"}
                             </strong>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 border border-border/40">
-                          <Clock className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                          <div>
+                        <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/40">
+                          <HardDrive className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                          <div className="min-w-0">
                             <span className="text-[10px] text-muted-foreground block leading-tight">
-                              Free Trial
+                              Storage
                             </span>
-                            <strong className="text-foreground font-semibold">
+                            <strong className="text-foreground font-semibold truncate block">
+                              {pkg.included_storage_gb ?? 0} GB
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/40">
+                          <Clock className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="text-[10px] text-muted-foreground block leading-tight">
+                              Trial
+                            </span>
+                            <strong className="text-foreground font-semibold truncate block">
                               {pkg.free_trial_days && pkg.free_trial_days > 0
-                                ? `${pkg.free_trial_days} Days`
-                                : "No Trial"}
+                                ? `${pkg.free_trial_days}d`
+                                : "None"}
                             </strong>
                           </div>
                         </div>
@@ -886,7 +885,7 @@ export default function PlansPricing() {
                         </span>
                         {planItems.length === 0 ? (
                           <div className="text-xs text-muted-foreground italic">
-                            No features added yet.
+                            Core ERP modules + Unlimited Teachers & Branches.
                           </div>
                         ) : (
                           <ul className="space-y-1.5 text-xs text-foreground">
@@ -978,7 +977,7 @@ export default function PlansPricing() {
         onClose={() => setIsDeleteDialogOpen(false)}
         onConfirm={handleConfirmDelete}
         title="Delete Subscription Package"
-        description={`Are you sure you want to delete "${packageToDelete?.plan_name}"? This action will cascade delete all attached features and add-ons.`}
+        description={`Are you sure you want to delete "${packageToDelete?.plan_name}"? If schools have historical subscriptions on this plan, it will be safely deactivated (soft-deleted) to preserve billing records.`}
         isDeleting={isDeleting}
       />
     </div>

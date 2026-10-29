@@ -141,7 +141,14 @@ export function resolveFirstAccessibleRoute(
 
 export function usePermission() {
   const dispatch = useAppDispatch()
-  const { user, profile, isLoadingProfile, isAuthenticated } = useAppSelector((state) => state.auth)
+  const {
+    user,
+    profile,
+    isLoadingProfile,
+    hasHydratedProfile,
+    profileError,
+    isAuthenticated,
+  } = useAppSelector((state) => state.auth)
 
   const effectiveRole = profile?.role || user?.role || null
   const isSuperAdmin = effectiveRole === "superadmin"
@@ -150,9 +157,12 @@ export function usePermission() {
     return profile?.permissions || user?.permissions || []
   }, [profile?.permissions, user?.permissions])
 
-  // True while profile/permissions haven't been loaded yet on initial page load
+  // True ONLY on initial page load before profile/permissions have been loaded once.
+  // Background window-focus refreshes update permissions silently without unmounting pages/forms.
   const isLoadingPermissions = Boolean(
-    isAuthenticated && (isLoadingProfile || (!profile && !user))
+    isAuthenticated &&
+      !hasHydratedProfile &&
+      (isLoadingProfile || (!profile && !user && !profileError))
   )
 
   const can = useCallback(

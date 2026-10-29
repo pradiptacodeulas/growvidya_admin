@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit'
 import { fetchProfileApi, updateProfileApi } from '@/services/profileService'
+import { clearAllFormDrafts } from '@/hooks/useFormDraft'
 import type { AdminProfile, User, UpdateProfileParams } from '@/types/auth'
 
 export type { AdminProfile, User, UpdateProfileParams }
@@ -10,6 +11,7 @@ export interface AuthState {
   profile: AdminProfile | null
   isAuthenticated: boolean
   isLoadingProfile: boolean
+  hasHydratedProfile: boolean
   profileError: string | null
 }
 
@@ -21,6 +23,7 @@ const getInitialAuth = (): AuthState => {
       profile: null,
       isAuthenticated: false,
       isLoadingProfile: false,
+      hasHydratedProfile: false,
       profileError: null,
     }
   }
@@ -41,6 +44,7 @@ const getInitialAuth = (): AuthState => {
     profile: null,
     isAuthenticated: Boolean(token),
     isLoadingProfile: Boolean(token),
+    hasHydratedProfile: false,
     profileError: null,
   }
 }
@@ -112,6 +116,12 @@ export const authSlice = createSlice({
           ...(state.profile || {}),
           ...action.payload.user,
         } as AdminProfile
+        if (
+          action.payload.user.role === 'superadmin' ||
+          Array.isArray(action.payload.user.permissions)
+        ) {
+          state.hasHydratedProfile = true
+        }
       }
       state.isAuthenticated = true
       state.profileError = null
@@ -120,6 +130,7 @@ export const authSlice = createSlice({
     setProfile: (state, action: PayloadAction<AdminProfile>) => {
       state.profile = action.payload
       state.user = { ...(state.user || {}), ...action.payload } as User
+      state.hasHydratedProfile = true
     },
     clearProfileError: (state) => {
       state.profileError = null
@@ -130,10 +141,12 @@ export const authSlice = createSlice({
       state.profile = null
       state.isAuthenticated = false
       state.isLoadingProfile = false
+      state.hasHydratedProfile = false
       state.profileError = null
       localStorage.removeItem('growvidya_token')
       localStorage.removeItem('growvidya_user')
       localStorage.removeItem('growvidya_profile')
+      clearAllFormDrafts()
     },
   },
   extraReducers: (builder) => {
@@ -144,12 +157,14 @@ export const authSlice = createSlice({
       })
       .addCase(fetchAdminProfile.fulfilled, (state, action) => {
         state.isLoadingProfile = false
+        state.hasHydratedProfile = true
         state.profile = action.payload
         state.user = { ...(state.user || {}), ...action.payload } as User
         state.profileError = null
       })
       .addCase(fetchAdminProfile.rejected, (state, action) => {
         state.isLoadingProfile = false
+        state.hasHydratedProfile = true
         state.profileError = action.payload || 'Failed to fetch admin profile.'
       })
       .addCase(updateAdminProfile.fulfilled, (state, action) => {

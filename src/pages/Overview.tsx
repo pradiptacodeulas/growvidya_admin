@@ -24,7 +24,6 @@ import {
   RefreshCw,
   ArrowUpRight,
   Eye,
-  ShieldCheck,
   LayoutDashboard,
   LifeBuoy,
   TrendingUp,

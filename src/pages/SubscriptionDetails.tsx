@@ -45,6 +45,10 @@ import {
   MapPin,
   Power,
   PowerOff,
+  FileText,
+  Printer,
+  History,
+  Package,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -91,6 +95,47 @@ function formatDateTime(dateStr?: string | null) {
   }
 }
 
+function computeCycleEndDate(startStr: string, cycle: string): string {
+  const d = new Date(`${startStr}T00:00:00`)
+  if (isNaN(d.getTime())) return startStr
+  switch (cycle) {
+    case "monthly":
+      d.setMonth(d.getMonth() + 1)
+      break
+    case "quarterly":
+      d.setMonth(d.getMonth() + 3)
+      break
+    case "half_yearly":
+      d.setMonth(d.getMonth() + 6)
+      break
+    case "trial":
+      d.setDate(d.getDate() + 14)
+      break
+    case "annual":
+    default:
+      d.setFullYear(d.getFullYear() + 1)
+      break
+  }
+  return d.toISOString().split("T")[0]
+}
+
+function formatCycleLabel(cycle?: string | null) {
+  switch (cycle) {
+    case "monthly":
+      return "Monthly"
+    case "quarterly":
+      return "Quarterly"
+    case "half_yearly":
+      return "Half-Yearly"
+    case "annual":
+      return "Annual"
+    case "trial":
+      return "Free Trial"
+    default:
+      return cycle || "—"
+  }
+}
+
 export default function SubscriptionDetails() {
   const { id } = useParams<{ id: string }>()
   const token = useAppSelector((state) => state.auth.token)
@@ -106,6 +151,7 @@ export default function SubscriptionDetails() {
   // Approve dialog states
   const [isApproveOpen, setIsApproveOpen] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
+  const [useCustomApprovalDates, setUseCustomApprovalDates] = useState(false)
   const [approvalStartDate, setApprovalStartDate] = useState("")
   const [approvalEndDate, setApprovalEndDate] = useState("")
   const [approvalNotes, setApprovalNotes] = useState("")
@@ -120,6 +166,9 @@ export default function SubscriptionDetails() {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [targetStatus, setTargetStatus] = useState<"active" | "suspended">("suspended")
   const [statusChangeNotes, setStatusChangeNotes] = useState("")
+
+  // Printable Zero-GST Invoice dialog
+  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false)
 
   const loadSubscription = useCallback(
     async (showLoading = true) => {
@@ -163,20 +212,13 @@ export default function SubscriptionDetails() {
   // Open Approval Dialog
   const handleOpenApprove = () => {
     if (!subscription) return
-    const today = new Date()
-    const todayStr = today.toISOString().split("T")[0]
+    const todayStr = new Date().toISOString().split("T")[0]
     setApprovalStartDate(todayStr)
-
-    const end = new Date(today)
-    if (subscription.billing_cycle === "monthly") {
-      end.setMonth(end.getMonth() + 1)
-    } else if (subscription.billing_cycle === "trial") {
-      end.setDate(end.getDate() + 14)
-    } else {
-      end.setFullYear(end.getFullYear() + 1)
-    }
-    setApprovalEndDate(end.toISOString().split("T")[0])
-    setApprovalNotes(`Verified and approved by Super Admin on ${new Date().toLocaleDateString()}`)
+    setApprovalEndDate(computeCycleEndDate(todayStr, subscription.billing_cycle))
+    setUseCustomApprovalDates(false)
+    setApprovalNotes(
+      `Offline Bank Transfer verified and approved by Super Admin on ${new Date().toLocaleDateString()}`
+    )
     setIsApproveOpen(true)
   }
 
@@ -186,13 +228,13 @@ export default function SubscriptionDetails() {
     try {
       setIsApproving(true)
       const approved = await approveSubscriptionApi(token, subscription.id, {
-        startDate: approvalStartDate || undefined,
-        endDate: approvalEndDate || undefined,
+        startDate: useCustomApprovalDates ? approvalStartDate || undefined : undefined,
+        endDate: useCustomApprovalDates ? approvalEndDate || undefined : undefined,
         verificationNotes: approvalNotes,
       })
 
       toast.success(
-        `🎉 Plan "${approved.plan_name}" for ${approved.school_name} has been approved and activated!`
+        `Plan "${approved.plan_name}" for ${approved.school_name} has been approved and activated!`
       )
       setIsApproveOpen(false)
       loadSubscription(false)
@@ -259,6 +301,10 @@ export default function SubscriptionDetails() {
     }
   }
 
+  const handlePrintInvoice = () => {
+    window.print()
+  }
+
   // Badge helpers
   const renderStatusBadge = (status: string) => {
     switch (status) {
@@ -266,7 +312,7 @@ export default function SubscriptionDetails() {
         return (
           <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1.5 font-medium px-3 py-1 text-xs">
             <Clock className="size-3.5" />
-            Pending Approval
+            Pending Offline UTR
           </Badge>
         )
       case "active":
@@ -297,6 +343,19 @@ export default function SubscriptionDetails() {
             Inactive
           </Badge>
         )
+      case "rejected":
+        return (
+          <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30 gap-1.5 font-medium px-3 py-1 text-xs">
+            <XCircle className="size-3.5" />
+            Rejected
+          </Badge>
+        )
+      case "superseded":
+        return (
+          <Badge variant="outline" className="text-muted-foreground gap-1.5 font-medium px-3 py-1 text-xs">
+            Superseded
+          </Badge>
+        )
       default:
         return (
           <Badge variant="outline" className="capitalize text-xs px-3 py-1">
@@ -311,19 +370,19 @@ export default function SubscriptionDetails() {
       case "completed":
         return (
           <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 gap-1.5 font-medium px-3 py-1 text-xs">
-            <Check className="size-3.5" /> Paid & Completed
+            <Check className="size-3.5" /> Paid (Zero GST)
           </Badge>
         )
       case "pending":
         return (
           <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1.5 font-medium px-3 py-1 text-xs">
-            <Clock className="size-3.5" /> Unpaid / Pending
+            <Clock className="size-3.5" /> Unpaid / Pending Verification
           </Badge>
         )
       case "failed":
         return (
           <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30 gap-1.5 font-medium px-3 py-1 text-xs">
-            <Ban className="size-3.5" /> Failed
+            <Ban className="size-3.5" /> Failed / Rejected
           </Badge>
         )
       default:
@@ -394,6 +453,12 @@ export default function SubscriptionDetails() {
   }
 
   const daysRemaining = getDaysRemaining(subscription.end_date)
+  const orderDetails = subscription.order_details || null
+  const auditLogs = subscription.audit_logs || []
+  const invoiceNumber =
+    subscription.invoice_no ||
+    orderDetails?.invoice_no ||
+    (subscription.payment_status === "completed" ? `INV-SUB-${subscription.id}` : null)
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
@@ -430,13 +495,24 @@ export default function SubscriptionDetails() {
             <Badge variant="outline" className="font-mono text-xs">
               {subscription.school_code}
             </Badge>
+            {invoiceNumber && (
+              <Badge variant="secondary" className="font-mono text-xs gap-1">
+                <FileText className="size-3" />
+                {invoiceNumber}
+              </Badge>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2 pt-1">
             {renderStatusBadge(subscription.status)}
             {renderPaymentBadge(subscription.payment_status)}
-            <Badge variant="secondary" className="capitalize text-xs font-normal">
-              {subscription.billing_cycle} Cycle
+            <Badge variant="secondary" className="text-xs font-normal">
+              {formatCycleLabel(subscription.billing_cycle)} Cycle
             </Badge>
+            {subscription.action_type && (
+              <Badge variant="outline" className="uppercase font-mono text-[11px]">
+                {subscription.action_type.replace("_", " ")}
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -452,6 +528,18 @@ export default function SubscriptionDetails() {
             <RefreshCw className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
+
+          {(orderDetails || subscription.payment_status === "completed") && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsInvoiceOpen(true)}
+              className="h-9 gap-1.5 cursor-pointer border-primary/40 text-primary hover:bg-primary/10"
+            >
+              <Printer className="size-3.5" />
+              Print Zero-GST Invoice
+            </Button>
+          )}
 
           {subscription.status === "pending" && canManageSubscription && (
             <>
@@ -501,21 +589,22 @@ export default function SubscriptionDetails() {
       </div>
 
       {/* Rejection / Warning Banner if Rejected */}
-      {subscription.status === "suspended" && subscription.rejection_reason && (
-        <Card className="border-rose-300 bg-rose-50/70 dark:bg-rose-950/20 dark:border-rose-900">
-          <CardContent className="p-4 flex items-start gap-3">
-            <XCircle className="size-5 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
-            <div>
-              <h4 className="text-sm font-semibold text-rose-900 dark:text-rose-200">
-                Subscription Request Rejected
-              </h4>
-              <p className="text-xs text-rose-800 dark:text-rose-300 mt-1">
-                Reason: {subscription.rejection_reason}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {(subscription.status === "rejected" || subscription.status === "suspended") &&
+        subscription.rejection_reason && (
+          <Card className="border-rose-300 bg-rose-50/70 dark:bg-rose-950/20 dark:border-rose-900">
+            <CardContent className="p-4 flex items-start gap-3">
+              <XCircle className="size-5 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
+              <div>
+                <h4 className="text-sm font-semibold text-rose-900 dark:text-rose-200">
+                  Subscription Request Rejected
+                </h4>
+                <p className="text-xs text-rose-800 dark:text-rose-300 mt-1">
+                  Reason: {subscription.rejection_reason}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
       {/* Main Details Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -640,11 +729,18 @@ export default function SubscriptionDetails() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <Layers className="size-4 text-primary" />
-                  Subscription Plan Details
+                  Subscription Plan & Quotas
                 </CardTitle>
-                <Badge variant="outline" className="font-mono text-xs">
-                  Plan ID: #{subscription.plan_id}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  {subscription.tier_rank ? (
+                    <Badge variant="secondary" className="font-mono text-xs">
+                      Tier Rank #{subscription.tier_rank}
+                    </Badge>
+                  ) : null}
+                  <Badge variant="outline" className="font-mono text-xs">
+                    Plan ID: #{subscription.plan_id}
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-5">
@@ -665,15 +761,15 @@ export default function SubscriptionDetails() {
 
                 <div>
                   <span className="text-xs text-muted-foreground block mb-0.5">Billing Cycle</span>
-                  <div className="font-medium text-foreground capitalize">
-                    {subscription.billing_cycle}
+                  <div className="font-medium text-foreground">
+                    {formatCycleLabel(subscription.billing_cycle)}
                   </div>
                 </div>
 
                 <div>
-                  <span className="text-xs text-muted-foreground block mb-0.5">Base Plan Price</span>
+                  <span className="text-xs text-muted-foreground block mb-0.5">Base Plan Price (Net)</span>
                   <div className="font-medium text-foreground">
-                    {formatCurrency(subscription.plan_price)}
+                    {formatCurrency(subscription.plan_amount ?? subscription.plan_price)}
                   </div>
                 </div>
 
@@ -681,8 +777,22 @@ export default function SubscriptionDetails() {
                   <span className="text-xs text-muted-foreground block mb-0.5">Max Students Capacity</span>
                   <div className="font-medium text-foreground">
                     {subscription.max_students && subscription.max_students > 0
-                      ? `${subscription.max_students.toLocaleString()} Students`
+                      ? `${subscription.max_students.toLocaleString("en-IN")} Students`
                       : "Unlimited Students"}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-xs text-muted-foreground block mb-0.5">Teachers & Branches</span>
+                  <div className="font-medium text-emerald-600 dark:text-emerald-400">
+                    Unlimited Teachers & Unlimited Branches
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-xs text-muted-foreground block mb-0.5">Included Base Storage</span>
+                  <div className="font-medium text-foreground">
+                    {Number(subscription.included_storage_gb) || 0} GB Included
                   </div>
                 </div>
 
@@ -694,12 +804,124 @@ export default function SubscriptionDetails() {
             </CardContent>
           </Card>
 
+          {/* Card: Itemized Order & Add-ons Breakdown (Zero GST) */}
+          {orderDetails && (
+            <Card className="shadow-xs">
+              <CardHeader className="pb-3 border-b">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Package className="size-4 text-primary" />
+                    Itemized Order & Add-ons Breakdown (Zero GST)
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {orderDetails.order_no}
+                    </Badge>
+                    {orderDetails.invoice_no && (
+                      <Badge className="font-mono text-xs bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
+                        {orderDetails.invoice_no}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-5 space-y-4">
+                {orderDetails.line_items && orderDetails.line_items.length > 0 ? (
+                  <div className="overflow-x-auto border rounded-lg">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-muted/50 text-muted-foreground uppercase border-b font-semibold">
+                        <tr>
+                          <th className="px-3 py-2.5">Item / Add-on</th>
+                          <th className="px-3 py-2.5">Category</th>
+                          <th className="px-3 py-2.5 text-right">Qty</th>
+                          <th className="px-3 py-2.5 text-right">Unit Net</th>
+                          <th className="px-3 py-2.5 text-right">Total Net</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {orderDetails.line_items.map((li, idx) => (
+                          <tr key={idx}>
+                            <td className="px-3 py-2.5 font-medium text-foreground">
+                              {li.title}
+                              {li.description && (
+                                <span className="block text-[11px] text-muted-foreground font-normal">
+                                  {li.description}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 capitalize text-muted-foreground">
+                              {li.category.replace("_", " ")}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-mono">{li.quantity}</td>
+                            <td className="px-3 py-2.5 text-right font-mono">
+                              {formatCurrency(li.unit_price)}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-mono font-semibold text-foreground">
+                              {formatCurrency(li.total)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+
+                <div className="p-3.5 rounded-lg bg-muted/40 border space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Software Plan Amount</span>
+                    <span className="font-mono font-medium">
+                      {formatCurrency(orderDetails.plan_amount)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Add-ons Total (Storage / Hardware / Credits)</span>
+                    <span className="font-mono font-medium">
+                      {formatCurrency(orderDetails.addons_amount)}
+                    </span>
+                  </div>
+                  {Number(orderDetails.discount_amount || 0) > 0 && (
+                    <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                      <span>
+                        Coupon Discount {orderDetails.coupon_code ? `(${orderDetails.coupon_code})` : ""}
+                      </span>
+                      <span className="font-mono font-semibold">
+                        -{formatCurrency(orderDetails.discount_amount)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Tax / GST</span>
+                    <span className="font-mono">₹0.00 (Zero GST)</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t font-bold text-sm text-foreground">
+                    <span>Net Grand Total</span>
+                    <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(orderDetails.grand_total)}
+                    </span>
+                  </div>
+                </div>
+
+                {orderDetails.shipping_address && (
+                  <div className="p-3 rounded-lg border bg-amber-500/5 text-xs space-y-1">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                      <MapPin className="size-3.5 text-primary" />
+                      Hardware Dispatch / Shipping Address
+                    </span>
+                    <p className="text-muted-foreground whitespace-pre-wrap">
+                      {orderDetails.shipping_address}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Card: Payment & Transaction Details */}
           <Card className="shadow-xs">
             <CardHeader className="pb-3 border-b">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <CreditCard className="size-4 text-primary" />
-                Payment & Billing Details
+                Payment & Billing Summary (Zero GST)
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5">
@@ -710,14 +932,14 @@ export default function SubscriptionDetails() {
                 </div>
 
                 <div>
-                  <span className="text-xs text-muted-foreground block mb-0.5">Total Amount Paid</span>
-                  <div className="font-bold text-foreground text-lg text-emerald-600 dark:text-emerald-400">
+                  <span className="text-xs text-muted-foreground block mb-0.5">Net Total Paid</span>
+                  <div className="font-bold text-lg text-emerald-600 dark:text-emerald-400">
                     {formatCurrency(subscription.amount_paid)}
                   </div>
                 </div>
 
                 <div>
-                  <span className="text-xs text-muted-foreground block mb-0.5">Original Plan Price</span>
+                  <span className="text-xs text-muted-foreground block mb-0.5">Original Gross Amount</span>
                   <div className="font-medium text-muted-foreground">
                     {subscription.original_amount
                       ? formatCurrency(subscription.original_amount)
@@ -732,7 +954,7 @@ export default function SubscriptionDetails() {
                       <Badge variant="secondary" className="font-mono text-xs">
                         {subscription.coupon_code}
                       </Badge>
-                      {subscription.discount_amount && (
+                      {Number(subscription.discount_amount || 0) > 0 && (
                         <span className="text-emerald-600 text-xs font-semibold">
                           (-{formatCurrency(subscription.discount_amount)})
                         </span>
@@ -744,14 +966,14 @@ export default function SubscriptionDetails() {
                 </div>
 
                 <div>
-                  <span className="text-xs text-muted-foreground block mb-0.5">Payment Gateway</span>
+                  <span className="text-xs text-muted-foreground block mb-0.5">Payment Method</span>
                   <div className="font-medium text-foreground uppercase">
-                    {subscription.payment_gateway || "Direct / Bank Transfer"}
+                    {(subscription.payment_gateway || "Direct / Bank Transfer").replace("_", " ")}
                   </div>
                 </div>
 
                 <div>
-                  <span className="text-xs text-muted-foreground block mb-0.5">Transaction ID / Reference</span>
+                  <span className="text-xs text-muted-foreground block mb-0.5">Transaction / UTR Reference</span>
                   {subscription.payment_transaction_id ? (
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-medium text-foreground truncate">
@@ -780,6 +1002,69 @@ export default function SubscriptionDetails() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Card: Subscription Audit Trail */}
+          {auditLogs.length > 0 && (
+            <Card className="shadow-xs">
+              <CardHeader className="pb-3 border-b">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <History className="size-4 text-primary" />
+                  Subscription Audit Trail
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5">
+                <div className="space-y-3">
+                  {auditLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="p-3 rounded-lg border bg-muted/20 text-xs space-y-1"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="uppercase font-mono text-[10px]">
+                            {log.action.replace(/_/g, " ")}
+                          </Badge>
+                          <span className="text-muted-foreground">
+                            by <strong className="text-foreground">{log.actor_type}</strong>
+                          </span>
+                        </div>
+                        <span className="text-muted-foreground font-mono text-[11px]">
+                          {formatDateTime(log.created_at)}
+                        </span>
+                      </div>
+
+                      {(log.old_status || log.new_status || log.new_end_date) && (
+                        <div className="text-muted-foreground flex flex-wrap items-center gap-3">
+                          {(log.old_status || log.new_status) && (
+                            <span>
+                              Status:{" "}
+                              <code className="font-mono">{log.old_status || "none"}</code> &rarr;{" "}
+                              <code className="font-mono text-foreground">
+                                {log.new_status || "—"}
+                              </code>
+                            </span>
+                          )}
+                          {log.new_end_date && (
+                            <span>
+                              Validity End:{" "}
+                              {log.old_end_date ? `${formatDate(log.old_end_date)} → ` : ""}
+                              <strong className="text-foreground">
+                                {formatDate(log.new_end_date)}
+                              </strong>
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {log.notes && (
+                        <p className="text-foreground/90 pt-0.5 whitespace-pre-wrap">{log.notes}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Right Column (1 Col wide on desktop) */}
@@ -797,6 +1082,13 @@ export default function SubscriptionDetails() {
                 <span className="text-xs text-muted-foreground">Subscription ID</span>
                 <span className="font-mono font-semibold text-foreground">#{subscription.id}</span>
               </div>
+
+              {invoiceNumber && (
+                <div className="flex justify-between items-center py-1.5 border-b">
+                  <span className="text-xs text-muted-foreground">Invoice Number</span>
+                  <span className="font-mono font-semibold text-foreground">{invoiceNumber}</span>
+                </div>
+              )}
 
               <div className="flex justify-between items-center py-1.5 border-b">
                 <span className="text-xs text-muted-foreground">Start Date</span>
@@ -832,7 +1124,7 @@ export default function SubscriptionDetails() {
               )}
 
               <div className="flex justify-between items-center py-1.5 border-b">
-                <span className="text-xs text-muted-foreground">Requested On</span>
+                <span className="text-xs text-muted-foreground">Created On</span>
                 <span className="text-foreground text-xs">{formatDateTime(subscription.created_at)}</span>
               </div>
 
@@ -852,7 +1144,7 @@ export default function SubscriptionDetails() {
             <CardHeader className="pb-3 border-b">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <UserCheck className="size-4 text-primary" />
-                Admin Verification & Audit
+                Admin Verification Status
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5 space-y-3 text-sm">
@@ -863,17 +1155,21 @@ export default function SubscriptionDetails() {
                 {subscription.status === "pending" ? (
                   <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-400 flex items-center gap-2">
                     <Clock className="size-4 shrink-0" />
-                    <span>Awaiting Super Admin review and verification.</span>
+                    <span>Awaiting Super Admin review of Offline Bank Transfer UTR.</span>
                   </div>
-                ) : subscription.status === "suspended" ? (
+                ) : subscription.status === "rejected" || subscription.status === "suspended" ? (
                   <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-700 dark:text-rose-400 flex items-center gap-2">
                     <XCircle className="size-4 shrink-0" />
-                    <span>Subscription was rejected or suspended.</span>
+                    <span>
+                      {subscription.status === "rejected"
+                        ? "Offline subscription request was rejected."
+                        : "Subscription is currently marked inactive."}
+                    </span>
                   </div>
                 ) : (
                   <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
                     <CheckCircle2 className="size-4 shrink-0" />
-                    <span>Subscription verified and activated.</span>
+                    <span>Subscription verified and active.</span>
                   </div>
                 )}
               </div>
@@ -895,7 +1191,7 @@ export default function SubscriptionDetails() {
               {subscription.verification_notes && (
                 <div className="p-3 rounded-lg bg-muted/60 border text-xs space-y-1">
                   <span className="text-muted-foreground font-semibold block">
-                    Admin Verification Notes:
+                    Verification Notes:
                   </span>
                   <p className="text-foreground whitespace-pre-wrap">
                     {subscription.verification_notes}
@@ -918,6 +1214,157 @@ export default function SubscriptionDetails() {
         </div>
       </div>
 
+      {/* Printable Zero-GST Invoice Dialog */}
+      <Dialog open={isInvoiceOpen} onOpenChange={setIsInvoiceOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between gap-2 pr-6">
+              <span className="flex items-center gap-2">
+                <FileText className="size-5 text-primary" />
+                Subscription Invoice / Payment Receipt (Zero GST)
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handlePrintInvoice}
+                className="h-8 gap-1.5 text-xs cursor-pointer print:hidden"
+              >
+                <Printer className="size-3.5" />
+                Print / Save PDF
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="border rounded-xl p-5 space-y-5 text-xs bg-background">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 border-b pb-4">
+              <div>
+                <h3 className="text-lg font-extrabold text-foreground">GrowVidya Cloud ERP</h3>
+                <p className="text-muted-foreground">Official SaaS Subscription & Add-on Receipt</p>
+              </div>
+              <div className="sm:text-right space-y-0.5">
+                <div className="font-mono font-bold text-sm text-foreground">
+                  {invoiceNumber || `ORD-${subscription.id}`}
+                </div>
+                {orderDetails?.order_no && (
+                  <div className="font-mono text-muted-foreground">
+                    Order Ref: {orderDetails.order_no}
+                  </div>
+                )}
+                <div className="text-muted-foreground">
+                  Date: {formatDate(orderDetails?.paid_at || subscription.created_at)}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <span className="text-[11px] uppercase font-semibold text-muted-foreground">
+                  Billed To
+                </span>
+                <div className="font-bold text-sm text-foreground mt-0.5">
+                  {subscription.school_name} ({subscription.school_code})
+                </div>
+                {subscription.school_email && <div>{subscription.school_email}</div>}
+                {subscription.school_phone && <div>{subscription.school_phone}</div>}
+                {subscription.school_address && (
+                  <div className="text-muted-foreground mt-0.5">{subscription.school_address}</div>
+                )}
+              </div>
+
+              <div className="sm:text-right space-y-1">
+                <div>
+                  <span className="text-muted-foreground">Payment Status: </span>
+                  <strong className="uppercase text-emerald-600">
+                    {subscription.payment_status}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Gateway: </span>
+                  <strong className="uppercase">
+                    {(subscription.payment_gateway || "Direct").replace("_", " ")}
+                  </strong>
+                </div>
+                {subscription.payment_transaction_id && (
+                  <div>
+                    <span className="text-muted-foreground">Txn / UTR: </span>
+                    <code className="font-mono">{subscription.payment_transaction_id}</code>
+                  </div>
+                )}
+                <div>
+                  <span className="text-muted-foreground">Validity: </span>
+                  <strong>
+                    {formatDate(subscription.start_date)} &rarr; {formatDate(subscription.end_date)}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/60 border-b font-semibold">
+                  <tr>
+                    <th className="px-3 py-2">Description</th>
+                    <th className="px-3 py-2 text-right">Qty</th>
+                    <th className="px-3 py-2 text-right">Unit Net</th>
+                    <th className="px-3 py-2 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {orderDetails?.line_items && orderDetails.line_items.length > 0 ? (
+                    orderDetails.line_items.map((li, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 font-medium">{li.title}</td>
+                        <td className="px-3 py-2 text-right font-mono">{li.quantity}</td>
+                        <td className="px-3 py-2 text-right font-mono">
+                          {formatCurrency(li.unit_price)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono font-semibold">
+                          {formatCurrency(li.total)}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td className="px-3 py-2 font-medium">
+                        {subscription.plan_name} ({formatCycleLabel(subscription.billing_cycle)})
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">1</td>
+                      <td className="px-3 py-2 text-right font-mono">
+                        {formatCurrency(subscription.original_amount ?? subscription.plan_price)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono font-semibold">
+                        {formatCurrency(subscription.original_amount ?? subscription.plan_price)}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end">
+              <div className="w-full sm:w-64 space-y-1.5">
+                {Number(subscription.discount_amount || 0) > 0 && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Discount ({subscription.coupon_code || "Coupon"})</span>
+                    <span className="font-mono">
+                      -{formatCurrency(subscription.discount_amount)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Tax / GST</span>
+                  <span className="font-mono">₹0.00 (Zero GST)</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t text-sm font-bold text-foreground">
+                  <span>Total Net Paid</span>
+                  <span className="font-mono">{formatCurrency(subscription.amount_paid)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Approve Modal Dialog */}
       <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
         <DialogContent className="sm:max-w-md">
@@ -927,7 +1374,7 @@ export default function SubscriptionDetails() {
               Approve & Activate Subscription
             </DialogTitle>
             <DialogDescription>
-              Review effective validity dates and confirm activation for{" "}
+              Confirm offline UTR payment verification and activate{" "}
               <strong>{subscription.school_name}</strong>.
             </DialogDescription>
           </DialogHeader>
@@ -944,55 +1391,76 @@ export default function SubscriptionDetails() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Billing Cycle:</span>
-                <span className="font-semibold text-foreground capitalize">
-                  {subscription.billing_cycle}
+                <span className="font-semibold text-foreground">
+                  {formatCycleLabel(subscription.billing_cycle)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Amount Paid:</span>
+                <span className="text-muted-foreground">Net Amount (Zero GST):</span>
                 <span className="font-bold text-foreground">
                   {formatCurrency(subscription.amount_paid)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Transaction ID:</span>
+                <span className="text-muted-foreground">UTR / Transaction ID:</span>
                 <span className="font-mono text-foreground">
                   {subscription.payment_transaction_id || "None"}
                 </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="approve_start" className="text-xs font-semibold">
-                  Start Date
-                </Label>
-                <Input
-                  id="approve_start"
-                  type="date"
-                  value={approvalStartDate}
-                  onChange={(e) => setApprovalStartDate(e.target.value)}
-                  className="text-xs h-9"
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-xs font-medium cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={useCustomApprovalDates}
+                  onChange={(e) => setUseCustomApprovalDates(e.target.checked)}
+                  className="rounded border-border"
                 />
-              </div>
+                <span>Override automatic validity dates (leave unchecked to preserve remaining days on early renewals)</span>
+              </label>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="approve_end" className="text-xs font-semibold">
-                  End Date
-                </Label>
-                <Input
-                  id="approve_end"
-                  type="date"
-                  value={approvalEndDate}
-                  onChange={(e) => setApprovalEndDate(e.target.value)}
-                  className="text-xs h-9"
-                />
-              </div>
+              {useCustomApprovalDates && (
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="approve_start" className="text-xs font-semibold">
+                      Start Date
+                    </Label>
+                    <Input
+                      id="approve_start"
+                      type="date"
+                      value={approvalStartDate}
+                      onChange={(e) => {
+                        setApprovalStartDate(e.target.value)
+                        if (e.target.value) {
+                          setApprovalEndDate(
+                            computeCycleEndDate(e.target.value, subscription.billing_cycle)
+                          )
+                        }
+                      }}
+                      className="text-xs h-9"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="approve_end" className="text-xs font-semibold">
+                      End Date
+                    </Label>
+                    <Input
+                      id="approve_end"
+                      type="date"
+                      value={approvalEndDate}
+                      onChange={(e) => setApprovalEndDate(e.target.value)}
+                      className="text-xs h-9"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="approve_notes" className="text-xs font-semibold">
-                Verification Notes (Optional)
+                Verification Notes
               </Label>
               <textarea
                 id="approve_notes"
@@ -1043,11 +1511,11 @@ export default function SubscriptionDetails() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
               <XCircle className="size-5" />
-              Reject Plan Request
+              Reject Offline Transfer Request
             </DialogTitle>
             <DialogDescription>
-              Are you sure you want to reject this plan request for{" "}
-              <strong>{subscription.school_name}</strong>?
+              Rejecting marks this offline request for{" "}
+              <strong>{subscription.school_name}</strong> as Rejected without disturbing any existing active plan.
             </DialogDescription>
           </DialogHeader>
 
@@ -1127,7 +1595,7 @@ export default function SubscriptionDetails() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Plan:</span>
                   <span className="font-medium text-foreground">
-                    {subscription.plan_name} ({subscription.billing_cycle})
+                    {subscription.plan_name} ({formatCycleLabel(subscription.billing_cycle)})
                   </span>
                 </div>
                 <div className="flex justify-between">

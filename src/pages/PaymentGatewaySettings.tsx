@@ -1,13 +1,17 @@
 import { useState, useEffect } from "react"
 import { useAppSelector } from "@/store/store"
 import { usePermission } from "@/hooks/usePermission"
+import { SERVER_BASE_URL } from "@/config/api"
 import {
   fetchRazorpayCredentialsApi,
   saveRazorpayCredentialsApi,
   updateRazorpayCredentialsApi,
   deleteRazorpayCredentialsApi,
 } from "@/services/settingsService"
-import type { RazorpayCredentials } from "@/types/settings"
+import type {
+  RazorpayCredentials,
+  SaveRazorpayCredentialsPayload,
+} from "@/types/settings"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -48,7 +52,6 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  CheckCircle2,
   Lock,
   CreditCard,
   Clock,
@@ -56,6 +59,7 @@ import {
   Settings as SettingsIcon,
   ChevronRight,
   ShieldAlert,
+  Webhook,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -98,8 +102,11 @@ export default function PaymentGatewaySettings() {
   const [formMode, setFormMode] = useState<"add" | "edit">("add")
   const [keyId, setKeyId] = useState("")
   const [keySecret, setKeySecret] = useState("")
+  const [webhookSecret, setWebhookSecret] = useState("")
+  const [clearWebhookSecret, setClearWebhookSecret] = useState(false)
   const [status, setStatus] = useState<number>(1)
   const [showTypedSecret, setShowTypedSecret] = useState(false)
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -107,6 +114,11 @@ export default function PaymentGatewaySettings() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [copiedKeyId, setCopiedKeyId] = useState(false)
+  const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false)
+
+  const webhookEndpointUrl = `${(
+    SERVER_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "")
+  ).replace(/\/$/, "")}/api/v1/webhooks/razorpay`
 
   const loadCredentials = async (showSkeleton = true) => {
     if (!token) return
@@ -135,6 +147,13 @@ export default function PaymentGatewaySettings() {
     setTimeout(() => setCopiedKeyId(false), 2000)
   }
 
+  const handleCopyWebhookUrl = () => {
+    navigator.clipboard.writeText(webhookEndpointUrl)
+    setCopiedWebhookUrl(true)
+    toast.success("Webhook endpoint URL copied to clipboard!")
+    setTimeout(() => setCopiedWebhookUrl(false), 2000)
+  }
+
   const openAddModal = () => {
     if (!canUpdateSettings) {
       toast.error("You do not have permission to add payment gateway credentials.")
@@ -143,8 +162,11 @@ export default function PaymentGatewaySettings() {
     setFormMode("add")
     setKeyId("")
     setKeySecret("")
+    setWebhookSecret("")
+    setClearWebhookSecret(false)
     setStatus(1)
     setShowTypedSecret(false)
+    setShowWebhookSecret(false)
     setFormError(null)
     setIsFormOpen(true)
   }
@@ -158,8 +180,11 @@ export default function PaymentGatewaySettings() {
     setFormMode("edit")
     setKeyId(credentials.key_id || "")
     setKeySecret("")
+    setWebhookSecret("")
+    setClearWebhookSecret(false)
     setStatus(credentials.status ?? 1)
     setShowTypedSecret(false)
+    setShowWebhookSecret(false)
     setFormError(null)
     setIsFormOpen(true)
   }
@@ -167,6 +192,7 @@ export default function PaymentGatewaySettings() {
   const validateForm = (): boolean => {
     const trimmedKeyId = keyId.trim()
     const trimmedSecret = keySecret.trim()
+    const trimmedWebhook = webhookSecret.trim()
 
     if (!trimmedKeyId) {
       setFormError("Razorpay Key ID is required.")
@@ -196,6 +222,11 @@ export default function PaymentGatewaySettings() {
       }
     }
 
+    if (trimmedWebhook && (trimmedWebhook.length < 6 || trimmedWebhook.length > 256)) {
+      setFormError("Webhook Secret must be between 6 and 256 characters when provided.")
+      return false
+    }
+
     setFormError(null)
     return true
   }
@@ -211,17 +242,19 @@ export default function PaymentGatewaySettings() {
 
     setIsSubmitting(true)
     try {
-      const payload: {
-        key_id: string
-        key_secret?: string
-        status: number
-      } = {
+      const payload: SaveRazorpayCredentialsPayload = {
         key_id: keyId.trim(),
         status,
       }
 
       if (keySecret.trim() !== "") {
         payload.key_secret = keySecret.trim()
+      }
+
+      if (webhookSecret.trim() !== "") {
+        payload.webhook_secret = webhookSecret.trim()
+      } else if (clearWebhookSecret) {
+        payload.clear_webhook_secret = true
       }
 
       let saved: RazorpayCredentials
@@ -235,6 +268,8 @@ export default function PaymentGatewaySettings() {
 
       setCredentials(saved)
       setKeySecret("")
+      setWebhookSecret("")
+      setClearWebhookSecret(false)
       setIsFormOpen(false)
     } catch (err: any) {
       const msg = err.message || "Failed to save Razorpay credentials."
@@ -318,9 +353,11 @@ export default function PaymentGatewaySettings() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-                Razorpay Payment Gateway
+                Razorpay Payment Gateway & Webhooks
               </h1>
-             
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Online Razorpay payments activate SaaS subscriptions & add-ons instantaneously (Zero GST).
+              </p>
             </div>
           </div>
         </div>
@@ -364,7 +401,7 @@ export default function PaymentGatewaySettings() {
       </div>
 
       {/* Summary Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border border-border/80 shadow-xs">
           <CardContent className="p-4 sm:p-5 flex items-center justify-between">
             <div className="space-y-1">
@@ -412,7 +449,7 @@ export default function PaymentGatewaySettings() {
         <Card className="border border-border/80 shadow-xs">
           <CardContent className="p-4 sm:p-5 flex items-center justify-between">
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">Secret Key Security</p>
+              <p className="text-xs font-medium text-muted-foreground">Key Secret Security</p>
               <div className="text-lg font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
                 {isLoading ? (
                   <Skeleton className="h-6 w-28" />
@@ -428,7 +465,93 @@ export default function PaymentGatewaySettings() {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="border border-border/80 shadow-xs">
+          <CardContent className="p-4 sm:p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Webhook Signature</p>
+              <div className="text-lg font-bold tracking-tight">
+                {isLoading ? (
+                  <Skeleton className="h-6 w-28" />
+                ) : credentials?.has_webhook_secret ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">HMAC-SHA256 Ready</span>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400">Optional / Not Set</span>
+                )}
+              </div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <Webhook className="size-5" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Razorpay Webhook Endpoint & Idempotent Fallback Card */}
+      <Card className="border border-border/80 shadow-xs">
+        <CardHeader className="border-b bg-muted/25 pb-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <CardTitle className="text-sm sm:text-base font-semibold flex items-center gap-2">
+                <Webhook className="h-4 w-4 text-primary" />
+                Razorpay Webhook Endpoint (Idempotent Payment Fallback)
+              </CardTitle>
+              <CardDescription className="text-xs mt-1">
+                Configure this URL in Razorpay Dashboard &rarr; Developers &rarr; Webhooks so payments activate automatically even if a school closes the browser tab mid-checkout.
+              </CardDescription>
+            </div>
+            <Badge
+              variant="outline"
+              className={
+                credentials?.has_webhook_secret
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs self-start sm:self-auto"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs self-start sm:self-auto"
+              }
+            >
+              {credentials?.has_webhook_secret ? "Webhook Secret Encrypted" : "Set Webhook Secret in Edit"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-5 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <code className="flex-1 font-mono text-xs bg-muted/70 px-3 py-2 rounded-lg border break-all">
+              {webhookEndpointUrl}
+            </code>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCopyWebhookUrl}
+              className="gap-1.5 h-8 text-xs font-semibold cursor-pointer shrink-0 self-start sm:self-auto"
+            >
+              {copiedWebhookUrl ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-600" />
+                  Copied URL
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy Webhook URL
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">Recommended Active Events:</span>
+            <Badge variant="secondary" className="font-mono text-[11px]">
+              order.paid
+            </Badge>
+            <Badge variant="secondary" className="font-mono text-[11px]">
+              payment.captured
+            </Badge>
+            <Badge variant="secondary" className="font-mono text-[11px]">
+              payment.failed
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Razorpay Credentials Table */}
       <Card className="border border-border/80 shadow-xs overflow-hidden">
@@ -462,6 +585,7 @@ export default function PaymentGatewaySettings() {
                 <TableHead className="font-semibold text-xs py-3">Environment</TableHead>
                 <TableHead className="font-semibold text-xs py-3">Key ID</TableHead>
                 <TableHead className="font-semibold text-xs py-3">Key Secret</TableHead>
+                <TableHead className="font-semibold text-xs py-3">Webhook Secret</TableHead>
                 <TableHead className="font-semibold text-xs py-3 text-center">Status</TableHead>
                 <TableHead className="font-semibold text-xs py-3">Last Updated</TableHead>
                 <TableHead className="font-semibold text-xs py-3 text-right">Actions</TableHead>
@@ -473,14 +597,15 @@ export default function PaymentGatewaySettings() {
                   <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-44" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-36" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-16 mx-auto" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-28" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-24 ml-auto" /></TableCell>
                 </TableRow>
               ) : !credentials ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-48 text-center">
+                  <TableCell colSpan={8} className="h-48 text-center">
                     <div className="flex flex-col items-center justify-center gap-2 py-4">
                       <div className="h-11 w-11 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center">
                         <KeyRound className="h-5 w-5" />
@@ -551,7 +676,7 @@ export default function PaymentGatewaySettings() {
 
                   <TableCell className="py-3.5">
                     <div className="flex items-center gap-2">
-                      <code className="font-mono text-xs sm:text-sm text-muted-foreground bg-muted/60 px-2.5 py-1 rounded border select-none">
+                      <code className="font-mono text-xs text-muted-foreground bg-muted/60 px-2.5 py-1 rounded border select-none">
                         {credentials.key_secret_masked || "••••••••••••••••"}
                       </code>
                       <Badge
@@ -559,9 +684,28 @@ export default function PaymentGatewaySettings() {
                         className="text-[10px] gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                       >
                         <Lock className="h-2.5 w-2.5" />
-                        Hidden
+                        Encrypted
                       </Badge>
                     </div>
+                  </TableCell>
+
+                  <TableCell className="py-3.5">
+                    {credentials.has_webhook_secret ? (
+                      <div className="flex items-center gap-2">
+                        <code className="font-mono text-xs text-muted-foreground bg-muted/60 px-2.5 py-1 rounded border select-none">
+                          {credentials.webhook_secret_masked || "••••••••••••"}
+                        </code>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                        >
+                          <Lock className="h-2.5 w-2.5" />
+                          Encrypted
+                        </Badge>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">Not Set</span>
+                    )}
                   </TableCell>
 
                   <TableCell className="py-3.5 text-center">
@@ -627,8 +771,6 @@ export default function PaymentGatewaySettings() {
             </TableBody>
           </Table>
         </div>
-
-        
       </Card>
 
       {/* Add / Edit Razorpay Credentials Dialog */}
@@ -643,8 +785,8 @@ export default function PaymentGatewaySettings() {
             </DialogTitle>
             <DialogDescription>
               {formMode === "add"
-                ? "Enter your Razorpay Key ID and Key Secret. The secret key is encrypted in the database and never exposed in plain text."
-                : "Update your Razorpay Key ID or enter a new Key Secret. Leave Key Secret blank to keep the existing secret."}
+                ? "Enter your Razorpay Key ID, Key Secret, and optional Webhook Secret. Secrets are encrypted with AES-256."
+                : "Update your Razorpay Key ID or secrets. Leave secret fields blank to retain currently stored encrypted secrets."}
             </DialogDescription>
           </DialogHeader>
 
@@ -735,6 +877,64 @@ export default function PaymentGatewaySettings() {
                   )}
                 </button>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="razorpay_webhook_secret" className="text-xs font-semibold">
+                Webhook Secret{" "}
+                <span className="text-muted-foreground font-normal">
+                  (Optional — for Razorpay <code className="font-mono">X-Razorpay-Signature</code> verification)
+                </span>
+              </Label>
+              <div className="relative">
+                <Input
+                  id="razorpay_webhook_secret"
+                  type={showWebhookSecret ? "text" : "password"}
+                  placeholder={
+                    formMode === "edit" && credentials?.has_webhook_secret
+                      ? "•••••••••••• (Leave blank to keep existing)"
+                      : "Enter Razorpay Webhook Secret (optional)"
+                  }
+                  value={webhookSecret}
+                  disabled={clearWebhookSecret}
+                  onChange={(e) => {
+                    setWebhookSecret(e.target.value)
+                    if (e.target.value) setClearWebhookSecret(false)
+                    if (formError) setFormError(null)
+                  }}
+                  autoComplete="new-password"
+                  className="font-mono text-sm pr-9"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowWebhookSecret((prev) => !prev)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                  tabIndex={-1}
+                  title={showWebhookSecret ? "Hide input" : "Show input"}
+                >
+                  {showWebhookSecret ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+
+              {formMode === "edit" && credentials?.has_webhook_secret && (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground pt-1 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={clearWebhookSecret}
+                    onChange={(e) => {
+                      setClearWebhookSecret(e.target.checked)
+                      if (e.target.checked) setWebhookSecret("")
+                    }}
+                    className="rounded border-border"
+                  />
+                  <span>Clear stored webhook secret</span>
+                </label>
+              )}
+
               <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                 <Lock className="h-3 w-3 shrink-0" />
                 Stored encrypted with AES-256 at rest and never returned in API responses.

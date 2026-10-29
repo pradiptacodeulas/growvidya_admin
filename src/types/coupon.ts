@@ -1,4 +1,5 @@
-export type DiscountType = 'fixed' | 'percentage'
+export type DiscountType = "fixed" | "percentage"
+export type CouponScope = "plan_only" | "software_and_storage" | "all"
 
 export interface Coupon {
   id: number
@@ -6,6 +7,7 @@ export interface Coupon {
   description: string | null
   discount_type: DiscountType | string
   discount_value: string
+  applicable_scope?: CouponScope | string
   min_order_amount: string | null
   max_discount_amount: string | null
   start_date: string
@@ -81,6 +83,7 @@ export interface CreateCouponPayload {
   description?: string
   discount_type: DiscountType | string
   discount_value: number | string
+  applicable_scope?: CouponScope
   min_order_amount?: number | string | null
   max_discount_amount?: number | string | null
   start_date?: string | null

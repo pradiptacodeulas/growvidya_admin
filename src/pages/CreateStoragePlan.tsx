@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router"
 import { useAppSelector } from "@/store/store"
+import { useDraftState, clearFormDraft } from "@/hooks/useFormDraft"
 import {
   createStoragePlanApi,
   fetchCapacityUnitsApi,
@@ -43,6 +44,8 @@ const STATUS_LABELS: Record<string, string> = {
   "0": "Inactive",
 }
 
+const FORM_DRAFT_KEY = "create_storage_plan"
+
 export default function CreateStoragePlan() {
   const navigate = useNavigate()
   const token = useAppSelector((state) => state.auth.token)
@@ -53,13 +56,18 @@ export default function CreateStoragePlan() {
   const [isLoadingUnits, setIsLoadingUnits] = useState(true)
 
   // Form State
-  const [planName, setPlanName] = useState("")
-  const [storageCapacity, setStorageCapacity] = useState("")
-  const [capacityUnitId, setCapacityUnitId] = useState<string>("")
-  const [monthlyPrice, setMonthlyPrice] = useState("")
-  const [annualPrice, setAnnualPrice] = useState("")
-  const [status, setStatus] = useState<number>(1)
-  const [description, setDescription] = useState("")
+  const [planName, setPlanName] = useDraftState(FORM_DRAFT_KEY, "planName", "")
+  const [storageCapacity, setStorageCapacity] = useDraftState(FORM_DRAFT_KEY, "storageCapacity", "")
+  const [capacityUnitId, setCapacityUnitId] = useDraftState<string>(FORM_DRAFT_KEY, "capacityUnitId", "")
+  const [monthlyPrice, setMonthlyPrice] = useDraftState(FORM_DRAFT_KEY, "monthlyPrice", "")
+  const [annualPrice, setAnnualPrice] = useDraftState(FORM_DRAFT_KEY, "annualPrice", "")
+  const [status, setStatus] = useDraftState<number>(FORM_DRAFT_KEY, "status", 1)
+  const [description, setDescription] = useDraftState(FORM_DRAFT_KEY, "description", "")
+
+  const handleCancel = () => {
+    clearFormDraft(FORM_DRAFT_KEY)
+    navigate("/storage-plans")
+  }
 
   // Load Capacity Units (Strictly NO fallback data)
   useEffect(() => {
@@ -70,9 +78,12 @@ export default function CreateStoragePlan() {
         const data = await fetchCapacityUnitsApi(token)
         setUnits(data || [])
         if (data && data.length > 0) {
-          // Default to GB if available, else first unit
+          // Preserve drafted unit if valid, otherwise default to GB or first unit
           const gbUnit = data.find((u) => u.unit_code === "GB")
-          setCapacityUnitId(String(gbUnit ? gbUnit.id : data[0].id))
+          const fallbackId = String(gbUnit ? gbUnit.id : data[0].id)
+          setCapacityUnitId((prev) =>
+            prev && data.some((u) => String(u.id) === prev) ? prev : fallbackId
+          )
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to load capacity units."
@@ -131,6 +142,7 @@ export default function CreateStoragePlan() {
 
       const result = await createStoragePlanApi(token, payload)
       toast.success(`Storage plan "${result.plan_name}" created successfully!`)
+      clearFormDraft(FORM_DRAFT_KEY)
       navigate("/storage-plans")
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to create storage plan."
@@ -347,7 +359,7 @@ export default function CreateStoragePlan() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => navigate("/storage-plans")}
+            onClick={handleCancel}
             disabled={isSubmitting}
             className="cursor-pointer"
           >

@@ -15,17 +15,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import {
   fetchSubscriptionsApi,
   approveSubscriptionApi,
   rejectSubscriptionApi,
   updateSubscriptionStatusApi,
+  fetchSchoolsLookupApi,
+  fetchPackagesApi,
+  manualAssignSubscriptionApi,
 } from "@/services/subscriptionService"
 import type {
   SchoolSubscription,
   SubscriptionCounts,
   SubscriptionsPagination,
+  SchoolLookupItem,
+  SubscriptionPackage,
 } from "@/types/subscription"
 import { toast } from "sonner"
 import {
@@ -43,7 +55,50 @@ import {
   Check,
   Power,
   PowerOff,
+  UserCog,
+  FileText,
 } from "lucide-react"
+
+function computeCycleEndDate(startStr: string, cycle: string): string {
+  const d = new Date(`${startStr}T00:00:00`)
+  if (isNaN(d.getTime())) return startStr
+  switch (cycle) {
+    case "monthly":
+      d.setMonth(d.getMonth() + 1)
+      break
+    case "quarterly":
+      d.setMonth(d.getMonth() + 3)
+      break
+    case "half_yearly":
+      d.setMonth(d.getMonth() + 6)
+      break
+    case "trial":
+      d.setDate(d.getDate() + 14)
+      break
+    case "annual":
+    default:
+      d.setFullYear(d.getFullYear() + 1)
+      break
+  }
+  return d.toISOString().split("T")[0]
+}
+
+function formatCycleLabel(cycle?: string) {
+  switch (cycle) {
+    case "monthly":
+      return "Monthly"
+    case "quarterly":
+      return "Quarterly"
+    case "half_yearly":
+      return "Half-Yearly"
+    case "annual":
+      return "Annual"
+    case "trial":
+      return "Free Trial"
+    default:
+      return cycle || "—"
+  }
+}
 
 export default function SchoolsSubscriptions() {
   const token = useAppSelector((state) => state.auth.token)
@@ -59,6 +114,7 @@ export default function SchoolsSubscriptions() {
     expired: 0,
     suspended: 0,
     trial: 0,
+    rejected: 0,
   })
   const [pagination, setPagination] = useState<SubscriptionsPagination>({
     total: 0,
@@ -71,14 +127,16 @@ export default function SchoolsSubscriptions() {
   const [selectedStatusTab, setSelectedStatusTab] = useState<string>("pending")
   const [currentPage, setCurrentPage] = useState<number>(1)
 
-  // Modals state
+  // Approve modal state
   const [selectedSubForApproval, setSelectedSubForApproval] = useState<SchoolSubscription | null>(null)
   const [isApproveOpen, setIsApproveOpen] = useState<boolean>(false)
+  const [useCustomApprovalDates, setUseCustomApprovalDates] = useState<boolean>(false)
   const [approvalStartDate, setApprovalStartDate] = useState<string>("")
   const [approvalEndDate, setApprovalEndDate] = useState<string>("")
   const [approvalNotes, setApprovalNotes] = useState<string>("")
   const [isApproving, setIsApproving] = useState<boolean>(false)
 
+  // Reject modal state
   const [selectedSubForRejection, setSelectedSubForRejection] = useState<SchoolSubscription | null>(null)
   const [isRejectOpen, setIsRejectOpen] = useState<boolean>(false)
   const [rejectionReason, setRejectionReason] = useState<string>("")
@@ -90,6 +148,19 @@ export default function SchoolsSubscriptions() {
   const [statusChangeNotes, setStatusChangeNotes] = useState<string>("")
   const [isStatusModalOpen, setIsStatusModalOpen] = useState<boolean>(false)
   const [isSubmittingStatus, setIsSubmittingStatus] = useState<boolean>(false)
+
+  // Manual Plan Assignment (Enterprise Override) modal state
+  const [isManualAssignOpen, setIsManualAssignOpen] = useState<boolean>(false)
+  const [schoolSearchInput, setSchoolSearchInput] = useState<string>("")
+  const [schoolsList, setSchoolsList] = useState<SchoolLookupItem[]>([])
+  const [activePlans, setActivePlans] = useState<SubscriptionPackage[]>([])
+  const [isLoadingLookup, setIsLoadingLookup] = useState<boolean>(false)
+  const [manualSchoolId, setManualSchoolId] = useState<string>("")
+  const [manualPlanId, setManualPlanId] = useState<string>("")
+  const [manualCustomEndDate, setManualCustomEndDate] = useState<string>("")
+  const [manualAmountPaid, setManualAmountPaid] = useState<string>("0")
+  const [manualReason, setManualReason] = useState<string>("")
+  const [isManualAssigning, setIsManualAssigning] = useState<boolean>(false)
 
   // Fetch subscriptions from database
   const loadSubscriptions = useCallback(async () => {
@@ -121,23 +192,90 @@ export default function SchoolsSubscriptions() {
     loadSubscriptions()
   }, [loadSubscriptions])
 
+  // Open Manual Plan Assignment modal
+  const handleOpenManualAssign = async () => {
+    if (!token || !canManageSubscription) return
+    setIsManualAssignOpen(true)
+    setManualSchoolId("")
+    setManualPlanId("")
+    setManualCustomEndDate("")
+    setManualAmountPaid("0")
+    setManualReason("")
+    setSchoolSearchInput("")
+    setIsLoadingLookup(true)
+    try {
+      const [schools, pkgRes] = await Promise.all([
+        fetchSchoolsLookupApi(token, ""),
+        fetchPackagesApi(token, { status: 1, limit: 100 }),
+      ])
+      setSchoolsList(schools || [])
+      setActivePlans(pkgRes?.packages || [])
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to load schools & plans for manual assignment.")
+    } finally {
+      setIsLoadingLookup(false)
+    }
+  }
+
+  const handleSearchSchoolsLookup = async () => {
+    if (!token) return
+    setIsLoadingLookup(true)
+    try {
+      const schools = await fetchSchoolsLookupApi(token, schoolSearchInput)
+      setSchoolsList(schools || [])
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to search schools.")
+    } finally {
+      setIsLoadingLookup(false)
+    }
+  }
+
+  const handleConfirmManualAssign = async () => {
+    if (!token) return
+    if (!manualSchoolId) {
+      toast.error("Please select a school.")
+      return
+    }
+    if (!manualPlanId) {
+      toast.error("Please select a target subscription plan.")
+      return
+    }
+    if (!manualReason.trim()) {
+      toast.error("An audit reason is mandatory for Manual Plan Assignment.")
+      return
+    }
+
+    setIsManualAssigning(true)
+    try {
+      const assigned = await manualAssignSubscriptionApi(token, {
+        school_id: Number(manualSchoolId),
+        plan_id: Number(manualPlanId),
+        custom_end_date: manualCustomEndDate || null,
+        amount_paid: Number(manualAmountPaid || 0),
+        reason: manualReason.trim(),
+      })
+      toast.success(
+        `Plan "${assigned.plan_name}" manually assigned to ${assigned.school_name} and logged in audit trail.`
+      )
+      setIsManualAssignOpen(false)
+      loadSubscriptions()
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to manually assign subscription plan.")
+    } finally {
+      setIsManualAssigning(false)
+    }
+  }
+
   // Open approval modal
   const handleOpenApprove = (sub: SchoolSubscription) => {
     setSelectedSubForApproval(sub)
-    const today = new Date()
-    const todayStr = today.toISOString().split("T")[0]
+    const todayStr = new Date().toISOString().split("T")[0]
     setApprovalStartDate(todayStr)
-
-    const end = new Date(today)
-    if (sub.billing_cycle === "monthly") {
-      end.setMonth(end.getMonth() + 1)
-    } else if (sub.billing_cycle === "trial") {
-      end.setDate(end.getDate() + 14)
-    } else {
-      end.setFullYear(end.getFullYear() + 1)
-    }
-    setApprovalEndDate(end.toISOString().split("T")[0])
-    setApprovalNotes(`Verified and approved by Super Admin on ${new Date().toLocaleDateString()}`)
+    setApprovalEndDate(computeCycleEndDate(todayStr, sub.billing_cycle))
+    setUseCustomApprovalDates(false)
+    setApprovalNotes(
+      `Offline Bank Transfer verified and approved by Super Admin on ${new Date().toLocaleDateString()}`
+    )
     setIsApproveOpen(true)
   }
 
@@ -147,13 +285,13 @@ export default function SchoolsSubscriptions() {
     try {
       setIsApproving(true)
       const approved = await approveSubscriptionApi(token, selectedSubForApproval.id, {
-        startDate: approvalStartDate || undefined,
-        endDate: approvalEndDate || undefined,
+        startDate: useCustomApprovalDates ? approvalStartDate || undefined : undefined,
+        endDate: useCustomApprovalDates ? approvalEndDate || undefined : undefined,
         verificationNotes: approvalNotes,
       })
 
       toast.success(
-        `🎉 Plan "${approved.plan_name}" for ${approved.school_name} has been approved and is now ACTIVE!`
+        `Plan "${approved.plan_name}" for ${approved.school_name} has been approved and is now ACTIVE!`
       )
       setIsApproveOpen(false)
       setSelectedSubForApproval(null)
@@ -234,7 +372,7 @@ export default function SchoolsSubscriptions() {
         return (
           <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1.5 font-medium px-2.5 py-0.5">
             <Clock className="size-3.5" />
-            Pending Approval
+            Pending Offline UTR
           </Badge>
         )
       case "active":
@@ -265,6 +403,19 @@ export default function SchoolsSubscriptions() {
             Inactive
           </Badge>
         )
+      case "rejected":
+        return (
+          <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30 gap-1.5 font-medium px-2.5 py-0.5">
+            <XCircle className="size-3.5" />
+            Rejected
+          </Badge>
+        )
+      case "superseded":
+        return (
+          <Badge variant="outline" className="text-muted-foreground gap-1.5 font-medium px-2.5 py-0.5">
+            Superseded
+          </Badge>
+        )
       default:
         return (
           <Badge variant="outline" className="capitalize">
@@ -279,24 +430,38 @@ export default function SchoolsSubscriptions() {
       case "completed":
         return (
           <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-            <Check className="size-3" /> Paid
+            <Check className="size-3" /> Paid (Zero GST)
           </span>
         )
       case "pending":
         return (
           <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
-            <Clock className="size-3" /> Unpaid / Pending
+            <Clock className="size-3" /> Pending Verification
           </span>
         )
       case "failed":
         return (
           <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 dark:text-rose-400">
-            <Ban className="size-3" /> Failed
+            <Ban className="size-3" /> Failed / Rejected
           </span>
         )
       default:
         return <span className="text-xs text-muted-foreground">{status}</span>
     }
+  }
+
+  const schoolSelectLabels: Record<string, string> = {}
+  for (const s of schoolsList) {
+    schoolSelectLabels[String(s.id)] = `${s.school_name} (${s.school_code})${
+      s.plan_name ? ` — Current: ${s.plan_name}` : ""
+    }`
+  }
+
+  const planSelectLabels: Record<string, string> = {}
+  for (const p of activePlans) {
+    planSelectLabels[String(p.id)] = `${p.plan_name} [Tier ${p.tier_rank || 1} • ${formatCycleLabel(
+      p.billing_cycle
+    )} • ₹${Number(p.price || 0).toLocaleString("en-IN")}]`
   }
 
   return (
@@ -306,11 +471,14 @@ export default function SchoolsSubscriptions() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
             <ShieldCheck className="size-7 text-primary" />
-            School Subscriptions & Plan Approvals
+            School Subscriptions & Offline Bank Approvals
           </h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            Online Razorpay orders activate instantaneously. Review offline UTR bank transfers or assign enterprise plans manually below.
+          </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Button
             variant="outline"
             size="sm"
@@ -321,6 +489,18 @@ export default function SchoolsSubscriptions() {
             <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
+
+          {canManageSubscription && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenManualAssign}
+              className="gap-2 cursor-pointer border-primary/40 text-primary hover:bg-primary/10"
+            >
+              <UserCog className="size-4" />
+              Manual Plan Assignment
+            </Button>
+          )}
 
           {canViewPackages && (
             <Button
@@ -352,12 +532,12 @@ export default function SchoolsSubscriptions() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Pending Approvals
+                Offline UTR Queue
               </p>
               <h3 className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">
                 {counts.pending}
               </h3>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Awaiting review</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Bank transfers to verify</p>
             </div>
             <div className="size-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
               <Clock className="size-5" />
@@ -495,7 +675,7 @@ export default function SchoolsSubscriptions() {
             }`}
           >
             <Clock className="size-3.5 text-amber-500" />
-            Pending Approvals
+            Pending Offline
             <span
               className={`px-1.5 py-0.2 rounded-full text-[11px] ${
                 counts.pending > 0
@@ -523,6 +703,25 @@ export default function SchoolsSubscriptions() {
             Active
             <span className="px-1.5 py-0.2 rounded-full text-[11px] bg-muted text-muted-foreground">
               {counts.active}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedStatusTab("trial")
+              setCurrentPage(1)
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+              selectedStatusTab === "trial"
+                ? "bg-background text-blue-700 dark:text-blue-400 shadow-sm border"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ShieldCheck className="size-3.5 text-blue-500" />
+            Trial
+            <span className="px-1.5 py-0.2 rounded-full text-[11px] bg-muted text-muted-foreground">
+              {counts.trial || 0}
             </span>
           </button>
 
@@ -567,6 +766,25 @@ export default function SchoolsSubscriptions() {
           <button
             type="button"
             onClick={() => {
+              setSelectedStatusTab("rejected")
+              setCurrentPage(1)
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+              selectedStatusTab === "rejected"
+                ? "bg-background text-rose-700 dark:text-rose-400 shadow-sm border"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <XCircle className="size-3.5 text-rose-500" />
+            Rejected
+            <span className="px-1.5 py-0.2 rounded-full text-[11px] bg-muted text-muted-foreground">
+              {counts.rejected || 0}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
               setSelectedStatusTab("all")
               setCurrentPage(1)
             }}
@@ -577,7 +795,7 @@ export default function SchoolsSubscriptions() {
             }`}
           >
             <Layers className="size-3.5 text-primary" />
-            All Subscriptions
+            All
             <span className="px-1.5 py-0.2 rounded-full text-[11px] bg-muted text-muted-foreground">
               {counts.total}
             </span>
@@ -589,7 +807,7 @@ export default function SchoolsSubscriptions() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Search school name, code, txn ID..."
+            placeholder="Search school, code, UTR, INV-..."
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value)
@@ -607,8 +825,8 @@ export default function SchoolsSubscriptions() {
             <thead className="text-xs uppercase bg-muted/50 text-muted-foreground border-b font-semibold tracking-wider">
               <tr>
                 <th className="px-4 py-3.5">School Details</th>
-                <th className="px-4 py-3.5">Requested Plan</th>
-                <th className="px-4 py-3.5">Amount & Gateway</th>
+                <th className="px-4 py-3.5">Plan & Action</th>
+                <th className="px-4 py-3.5">Net Amount & Gateway</th>
                 <th className="px-4 py-3.5">Payment</th>
                 <th className="px-4 py-3.5">Plan Status</th>
                 <th className="px-4 py-3.5">Dates</th>
@@ -633,12 +851,12 @@ export default function SchoolsSubscriptions() {
                       </div>
                       <h4 className="font-semibold text-foreground text-base mb-1">
                         {selectedStatusTab === "pending"
-                          ? "No Pending Plan Requests"
+                          ? "No Pending Offline Bank Transfers"
                           : "No Subscription Records Found"}
                       </h4>
                       <p className="text-xs text-muted-foreground">
                         {selectedStatusTab === "pending"
-                          ? "There are currently no school plan selections waiting for review and approval."
+                          ? "Online Razorpay payments activate automatically. Offline bank transfers with UTR numbers appear here for verification."
                           : "No school subscriptions match your active filters."}
                       </p>
                     </div>
@@ -649,6 +867,9 @@ export default function SchoolsSubscriptions() {
                   const isPending = sub.status === "pending"
                   const isActive = sub.status === "active"
                   const isSuspended = sub.status === "suspended"
+                  const addonsAmt = parseFloat(String(sub.addons_amount || 0))
+                  const planAmt = parseFloat(String(sub.plan_amount ?? sub.plan_price ?? 0))
+
                   return (
                     <tr
                       key={sub.id}
@@ -677,19 +898,38 @@ export default function SchoolsSubscriptions() {
                                 </>
                               )}
                             </div>
+                            {(sub.invoice_no || sub.order_no) && (
+                              <div className="text-[11px] font-mono text-muted-foreground flex items-center gap-1 mt-0.5">
+                                <FileText className="size-3 text-primary/70" />
+                                <span>{sub.invoice_no || sub.order_no}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
 
                       {/* Plan details */}
                       <td className="px-4 py-4">
-                        <div className="font-medium text-foreground">{sub.plan_name}</div>
-                        <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                          <span className="capitalize font-semibold text-foreground/80">
-                            {sub.billing_cycle}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-medium text-foreground">{sub.plan_name}</span>
+                          {sub.tier_rank ? (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+                              T{sub.tier_rank}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className="font-semibold text-foreground/80">
+                            {formatCycleLabel(sub.billing_cycle)}
                           </span>
-                          <span>•</span>
-                          <span>₹{parseFloat(String(sub.plan_price || 0)).toLocaleString("en-IN")}</span>
+                          {sub.action_type && (
+                            <>
+                              <span>•</span>
+                              <span className="uppercase text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded">
+                                {sub.action_type.replace("_", " ")}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </td>
 
@@ -698,13 +938,19 @@ export default function SchoolsSubscriptions() {
                         <div className="font-bold text-foreground">
                           ₹{parseFloat(String(sub.amount_paid || 0)).toLocaleString("en-IN")}
                         </div>
+                        {addonsAmt > 0 && (
+                          <div className="text-[11px] text-muted-foreground">
+                            Plan ₹{planAmt.toLocaleString("en-IN")} + Add-ons ₹
+                            {addonsAmt.toLocaleString("en-IN")}
+                          </div>
+                        )}
                         <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                           <span className="capitalize font-medium">
-                            {sub.payment_gateway || "Direct"}
+                            {(sub.payment_gateway || "Direct").replace("_", " ")}
                           </span>
                           {sub.payment_transaction_id && (
                             <span
-                              className="font-mono text-[11px] truncate max-w-[100px]"
+                              className="font-mono text-[11px] truncate max-w-[110px]"
                               title={sub.payment_transaction_id}
                             >
                               ({sub.payment_transaction_id})
@@ -722,13 +968,13 @@ export default function SchoolsSubscriptions() {
                       {/* Dates */}
                       <td className="px-4 py-4 text-xs text-muted-foreground">
                         <div>
-                          <span className="font-medium text-foreground">Requested: </span>
-                          {new Date(sub.created_at).toLocaleDateString()}
+                          <span className="font-medium text-foreground">Created: </span>
+                          {new Date(sub.created_at).toLocaleDateString("en-IN")}
                         </div>
-                        {sub.status === "active" && sub.end_date && (
+                        {(sub.status === "active" || sub.status === "trial") && sub.end_date && (
                           <div className="mt-0.5">
                             <span className="font-medium text-foreground">Expires: </span>
-                            {new Date(sub.end_date).toLocaleDateString()}
+                            {new Date(sub.end_date).toLocaleDateString("en-IN")}
                           </div>
                         )}
                       </td>
@@ -789,7 +1035,7 @@ export default function SchoolsSubscriptions() {
                               size="sm"
                               variant="ghost"
                               className="text-xs h-8 px-2 text-muted-foreground hover:text-foreground cursor-pointer"
-                              title="View Subscription Details"
+                              title="View Subscription & Invoice Details"
                             >
                               <Eye className="size-3.5" />
                             </Button>
@@ -836,17 +1082,16 @@ export default function SchoolsSubscriptions() {
         )}
       </Card>
 
-      {/* Review & Approve Dialog */}
+      {/* Review & Approve Offline Bank Transfer Dialog */}
       <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="size-5" />
-              Approve School Subscription Plan
+              Approve Offline Bank Transfer & Activate Plan
             </DialogTitle>
             <DialogDescription>
-              Review the plan selection details below. Once approved, the plan will immediately become{" "}
-              <strong>active</strong> for the user and their school account.
+              Verify the school&apos;s UTR / bank transfer reference below. Approving generates a Zero-GST Invoice, activates bundled add-ons, and credits any purchased SMS/Push packs.
             </DialogDescription>
           </DialogHeader>
 
@@ -863,19 +1108,20 @@ export default function SchoolsSubscriptions() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Requested Plan:</span>
                   <span className="font-semibold text-foreground">
-                    {selectedSubForApproval.plan_name} ({selectedSubForApproval.billing_cycle})
+                    {selectedSubForApproval.plan_name} (
+                    {formatCycleLabel(selectedSubForApproval.billing_cycle)})
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Amount Paid / Quoted:</span>
+                  <span className="text-muted-foreground">Net Amount (Zero GST):</span>
                   <span className="font-bold text-foreground">
                     ₹{parseFloat(String(selectedSubForApproval.amount_paid || 0)).toLocaleString("en-IN")}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Payment Gateway / Txn ID:</span>
+                  <span className="text-muted-foreground">Gateway / UTR Reference:</span>
                   <span className="font-mono text-xs text-foreground">
-                    {selectedSubForApproval.payment_gateway || "N/A"}{" "}
+                    {selectedSubForApproval.payment_gateway || "Bank Transfer"}{" "}
                     {selectedSubForApproval.payment_transaction_id
                       ? `(${selectedSubForApproval.payment_transaction_id})`
                       : ""}
@@ -883,46 +1129,67 @@ export default function SchoolsSubscriptions() {
                 </div>
               </div>
 
-              {/* Start Date & End Date controls */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="start_date" className="text-xs font-semibold">
-                    Effective Start Date
-                  </Label>
-                  <Input
-                    id="start_date"
-                    type="date"
-                    value={approvalStartDate}
-                    onChange={(e) => setApprovalStartDate(e.target.value)}
-                    className="text-xs"
+              {/* Automatic Renewal Stacking vs Custom Date Override */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-xs font-medium cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={useCustomApprovalDates}
+                    onChange={(e) => setUseCustomApprovalDates(e.target.checked)}
+                    className="rounded border-border"
                   />
-                </div>
+                  <span>Override automatic validity dates (leave unchecked to preserve remaining days on early renewals)</span>
+                </label>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="end_date" className="text-xs font-semibold">
-                    Expiry / End Date
-                  </Label>
-                  <Input
-                    id="end_date"
-                    type="date"
-                    value={approvalEndDate}
-                    onChange={(e) => setApprovalEndDate(e.target.value)}
-                    className="text-xs"
-                  />
-                </div>
+                {useCustomApprovalDates && (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="start_date" className="text-xs font-semibold">
+                        Effective Start Date
+                      </Label>
+                      <Input
+                        id="start_date"
+                        type="date"
+                        value={approvalStartDate}
+                        onChange={(e) => {
+                          setApprovalStartDate(e.target.value)
+                          if (e.target.value && selectedSubForApproval) {
+                            setApprovalEndDate(
+                              computeCycleEndDate(e.target.value, selectedSubForApproval.billing_cycle)
+                            )
+                          }
+                        }}
+                        className="text-xs"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="end_date" className="text-xs font-semibold">
+                        Expiry / End Date
+                      </Label>
+                      <Input
+                        id="end_date"
+                        type="date"
+                        value={approvalEndDate}
+                        onChange={(e) => setApprovalEndDate(e.target.value)}
+                        className="text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Approval Notes */}
               <div className="space-y-1.5">
                 <Label htmlFor="approval_notes" className="text-xs font-semibold">
-                  Admin Approval Notes (Optional)
+                  Admin Approval Notes
                 </Label>
                 <textarea
                   id="approval_notes"
                   rows={2}
                   value={approvalNotes}
                   onChange={(e) => setApprovalNotes(e.target.value)}
-                  placeholder="e.g. Payment verified via bank transfer ref #..."
+                  placeholder="e.g. Bank transfer UTR verified in statement..."
                   className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
               </div>
@@ -967,11 +1234,12 @@ export default function SchoolsSubscriptions() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
               <XCircle className="size-5" />
-              Reject Plan Request
+              Reject Offline Transfer Request
             </DialogTitle>
             <DialogDescription>
-              Are you sure you want to reject this plan request for{" "}
-              <strong>{selectedSubForRejection?.school_name}</strong>?
+              Rejecting this pending request for{" "}
+              <strong>{selectedSubForRejection?.school_name}</strong> marks it as{" "}
+              <strong>Rejected</strong> without disturbing any existing active plan on their account.
             </DialogDescription>
           </DialogHeader>
 
@@ -984,7 +1252,7 @@ export default function SchoolsSubscriptions() {
               rows={3}
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="e.g. Bank transfer transaction reference could not be verified."
+              placeholder="e.g. UTR transaction reference could not be matched in bank statement."
               className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
           </div>
@@ -1051,7 +1319,8 @@ export default function SchoolsSubscriptions() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Plan:</span>
                   <span className="font-medium text-foreground">
-                    {selectedSubForStatusChange.plan_name} ({selectedSubForStatusChange.billing_cycle})
+                    {selectedSubForStatusChange.plan_name} (
+                    {formatCycleLabel(selectedSubForStatusChange.billing_cycle)})
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -1114,6 +1383,184 @@ export default function SchoolsSubscriptions() {
                 <>
                   <PowerOff className="size-4" />
                   Confirm & Make Inactive
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual Plan Assignment (Enterprise Override) Dialog */}
+      <Dialog open={isManualAssignOpen} onOpenChange={setIsManualAssignOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <UserCog className="size-5" />
+              Super Admin Manual Plan Assignment
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Assign or override a school&apos;s subscription plan directly (for Enterprise contracts, custom agreements, or administrative overrides). Every manual assignment is permanently recorded in <code className="font-mono">subscription_audit_logs</code>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-sm">
+            {/* School Search & Selector */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">
+                Select School <span className="text-destructive">*</span>
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Filter school name or code..."
+                  value={schoolSearchInput}
+                  onChange={(e) => setSchoolSearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault()
+                      handleSearchSchoolsLookup()
+                    }
+                  }}
+                  className="h-8 text-xs"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isLoadingLookup}
+                  onClick={handleSearchSchoolsLookup}
+                  className="h-8 text-xs cursor-pointer shrink-0"
+                >
+                  {isLoadingLookup ? "..." : "Filter"}
+                </Button>
+              </div>
+
+              <Select
+                value={manualSchoolId}
+                onValueChange={(val) => setManualSchoolId(String(val || ""))}
+                items={schoolSelectLabels}
+                itemToStringLabel={(val) => schoolSelectLabels[String(val)] || "Choose school..."}
+              >
+                <SelectTrigger className="w-full h-9 text-xs">
+                  <SelectValue placeholder="Choose a school..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {schoolsList.map((s) => (
+                    <SelectItem
+                      key={s.id}
+                      value={String(s.id)}
+                      label={schoolSelectLabels[String(s.id)]}
+                    >
+                      {schoolSelectLabels[String(s.id)]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Active Plan Selector */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">
+                Target Subscription Package <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={manualPlanId}
+                onValueChange={(val) => {
+                  const nextId = String(val || "")
+                  setManualPlanId(nextId)
+                  const found = activePlans.find((p) => String(p.id) === nextId)
+                  if (found) {
+                    setManualAmountPaid(String(Number(found.price || 0)))
+                  }
+                }}
+                items={planSelectLabels}
+                itemToStringLabel={(val) => planSelectLabels[String(val)] || "Choose active plan..."}
+              >
+                <SelectTrigger className="w-full h-9 text-xs">
+                  <SelectValue placeholder="Choose active plan..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {activePlans.map((p) => (
+                    <SelectItem
+                      key={p.id}
+                      value={String(p.id)}
+                      label={planSelectLabels[String(p.id)]}
+                    >
+                      {planSelectLabels[String(p.id)]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Amount Paid & Optional Custom Expiry */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">
+                  Net Amount Recorded (₹ — Zero GST)
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={manualAmountPaid}
+                  onChange={(e) => setManualAmountPaid(e.target.value)}
+                  className="h-9 text-xs font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">
+                  Custom Expiry Date <span className="text-muted-foreground font-normal">(Optional)</span>
+                </Label>
+                <Input
+                  type="date"
+                  value={manualCustomEndDate}
+                  onChange={(e) => setManualCustomEndDate(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Mandatory Audit Reason */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">
+                Mandatory Audit Trail Reason <span className="text-destructive">*</span>
+              </Label>
+              <textarea
+                rows={2}
+                value={manualReason}
+                onChange={(e) => setManualReason(e.target.value)}
+                placeholder="e.g. Custom Enterprise MOU signed (#MOU-2026-14) or Complimentary Migration"
+                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsManualAssignOpen(false)}
+              disabled={isManualAssigning}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleConfirmManualAssign}
+              disabled={isManualAssigning}
+              className="gap-1.5 cursor-pointer font-semibold"
+            >
+              {isManualAssigning ? (
+                <>
+                  <RefreshCw className="size-3.5 animate-spin" />
+                  Assigning...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="size-4" />
+                  Assign & Activate Plan
                 </>
               )}
             </Button>

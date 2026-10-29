@@ -1,32 +1,48 @@
 import type { CatalogCounts, PaginationMeta } from "@/types/pagination"
 
-export type BillingCycle = 'monthly' | 'quarterly' | 'half_yearly' | 'annual' | 'trial'
+export type BillingCycle = "monthly" | "quarterly" | "half_yearly" | "annual" | "trial"
 
 export interface SubscriptionItem {
   id?: number
   sub_id?: number
-  item_name: string // e.g. "Student information", "Fee management"
-  item_code?: string | null // e.g. "STUDENT_INFORMATION", "FEE_MANAGEMENT"
+  item_name: string
+  item_code?: string | null
+  item_type?: "module" | "feature" | string
   description?: string | null
-  status: 1 | 0 // 1 = Active, 0 = Inactive
+  status: 1 | 0
   created_at?: string
   updated_at?: string
 }
 
 export interface SubscriptionPackage {
   id: number
-  plan_name: string // e.g. "Growth Plan"
-  plan_code: string // e.g. "growth_annual"
+  plan_name: string
+  plan_code: string
+  plan_group?: string | null
+  tier_rank?: number
   description: string
-  price: number | string // Base plan price (e.g. 5999.00)
+  price: number | string
+  original_price?: number | string | null
+  discount_amount?: number
+  discount_percent?: number
   billing_cycle: BillingCycle
-  free_trial_days?: number // Dynamic free trial days (0 = no trial)
-  max_students: number // 0 = Unlimited
-  status: 1 | 0 // 1 = Active, 0 = Inactive
-  subscriber_count?: number // Number of enrolled schools
+  free_trial_days?: number
+  max_students: number
+  max_teachers?: number
+  max_branches?: number
+  included_storage_gb?: number
+  is_popular?: 0 | 1 | boolean
+  status: 1 | 0
+  subscriber_count?: number
   items_count?: number
   features?: Record<string, boolean>
-  items: SubscriptionItem[] // Child items array
+  cycle_meta?: {
+    key: string
+    label: string
+    months: number
+    days: number
+  }
+  items: SubscriptionItem[]
   created_at: string
   updated_at?: string
 }
@@ -34,11 +50,16 @@ export interface SubscriptionPackage {
 export interface CreatePackagePayload {
   plan_name: string
   plan_code: string
+  plan_group?: string
+  tier_rank?: number
   description?: string
   price: number | string
+  original_price?: number | string | null
   billing_cycle: BillingCycle
   free_trial_days?: number
   max_students: number
+  included_storage_gb?: number
+  is_popular?: 0 | 1
   status?: 1 | 0
   items?: SubscriptionItem[]
 }
@@ -46,11 +67,16 @@ export interface CreatePackagePayload {
 export interface UpdatePackagePayload {
   plan_name?: string
   plan_code?: string
+  plan_group?: string
+  tier_rank?: number
   description?: string
   price?: number | string
+  original_price?: number | string | null
   billing_cycle?: BillingCycle
   free_trial_days?: number
   max_students?: number
+  included_storage_gb?: number
+  is_popular?: 0 | 1
   status?: 1 | 0
   items?: SubscriptionItem[]
 }
@@ -58,6 +84,7 @@ export interface UpdatePackagePayload {
 export interface CreateItemPayload {
   item_name: string
   item_code?: string | null
+  item_type?: "module" | "feature" | string
   description?: string | null
   status?: 1 | 0
 }
@@ -108,8 +135,85 @@ export interface SingleItemApiResponse {
   data: SubscriptionItem
 }
 
-export type SchoolSubscriptionStatus = 'pending' | 'active' | 'trial' | 'expired' | 'suspended'
-export type SchoolPaymentStatus = 'completed' | 'pending' | 'failed'
+export type SchoolSubscriptionStatus =
+  | "pending"
+  | "active"
+  | "trial"
+  | "expired"
+  | "suspended"
+  | "rejected"
+  | "superseded"
+
+export type SchoolPaymentStatus = "completed" | "pending" | "failed"
+
+export interface OrderInvoiceLineItem {
+  category: string
+  title: string
+  description?: string
+  quantity: number
+  unit_price: number
+  total: number
+}
+
+export interface OrderInvoiceDetails {
+  id: number
+  order_no: string
+  invoice_no?: string | null
+  school_id?: number | null
+  school_name?: string | null
+  school_code?: string | null
+  school_email?: string | null
+  school_phone?: string | null
+  school_address?: string | null
+  order_type: string
+  action_type: string
+  plan_id?: number | null
+  plan_name?: string | null
+  billing_cycle?: string | null
+  plan_amount: number
+  addons_amount: number
+  subtotal_amount: number
+  coupon_code?: string | null
+  discount_amount: number
+  tax_amount: number
+  grand_total: number
+  currency: string
+  payment_method: string
+  razorpay_order_id?: string | null
+  razorpay_payment_id?: string | null
+  utr_number?: string | null
+  shipping_address?: string | null
+  status: string
+  failure_code?: string | null
+  failure_reason?: string | null
+  subscription_id?: number | null
+  start_date?: string | null
+  end_date?: string | null
+  subscription_status?: string | null
+  verification_notes?: string | null
+  paid_at?: string | null
+  created_at?: string | null
+  line_items: OrderInvoiceLineItem[]
+}
+
+export interface SubscriptionAuditLog {
+  id: number
+  school_id: number
+  subscription_id?: number | null
+  payment_order_id?: number | null
+  action: string
+  actor_type: string
+  actor_id?: number | null
+  old_plan_id?: number | null
+  new_plan_id?: number | null
+  old_status?: string | null
+  new_status?: string | null
+  old_end_date?: string | null
+  new_end_date?: string | null
+  amount?: number | string | null
+  notes?: string | null
+  created_at: string
+}
 
 export interface SchoolSubscription {
   id: number
@@ -122,10 +226,15 @@ export interface SchoolSubscription {
   plan_id: number
   plan_name: string
   plan_code?: string
+  tier_rank?: number
+  included_storage_gb?: number
   plan_price: number | string
   billing_cycle: BillingCycle
   max_students?: number
   max_teachers?: number
+  action_type?: string
+  plan_amount?: number | string | null
+  addons_amount?: number | string | null
   amount_paid: number | string
   original_amount?: number | string | null
   discount_amount?: number | string
@@ -133,6 +242,9 @@ export interface SchoolSubscription {
   coupon_code?: string | null
   payment_gateway?: string
   payment_transaction_id?: string | null
+  payment_order_id?: number | null
+  order_no?: string | null
+  invoice_no?: string | null
   payment_status: SchoolPaymentStatus
   status: SchoolSubscriptionStatus
   start_date: string
@@ -142,6 +254,8 @@ export interface SchoolSubscription {
   verified_by_name?: string | null
   verified_at?: string | null
   rejection_reason?: string | null
+  order_details?: OrderInvoiceDetails | null
+  audit_logs?: SubscriptionAuditLog[]
   created_at: string
   updated_at?: string | null
 }
@@ -153,6 +267,7 @@ export interface SubscriptionCounts {
   expired: number
   suspended: number
   trial: number
+  rejected?: number
 }
 
 export interface SubscriptionsPagination {
@@ -176,4 +291,23 @@ export interface ApproveSubscriptionPayload {
 
 export interface RejectSubscriptionPayload {
   rejectionReason?: string
+}
+
+export interface ManualAssignSubscriptionPayload {
+  school_id: number
+  plan_id: number
+  custom_end_date?: string | null
+  amount_paid?: number
+  reason: string
+}
+
+export interface SchoolLookupItem {
+  id: number
+  school_name: string
+  school_code: string
+  email?: string | null
+  phone_number?: string | null
+  plan_name?: string | null
+  subscription_status?: string | null
+  student_count?: number
 }
