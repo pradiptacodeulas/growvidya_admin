@@ -3,6 +3,7 @@ import type {
   RazorpayCredentials,
   SaveRazorpayCredentialsPayload,
   EmailCredential,
+  EmailProviderType,
   SaveEmailCredentialPayload,
   CommunicationSettings,
   NotificationPricingItem,
@@ -252,21 +253,21 @@ export async function sendTestEmailApi(
   )
 }
 
-export async function updateEmailOtpModeApi(
+export async function setActiveEmailProviderApi(
   token: string,
-  otp_mode: "test" | "production"
-): Promise<{ otp_mode: "test" | "production" }> {
+  provider: EmailProviderType
+): Promise<EmailCredential> {
   const response = await makeRequest(
-    "/settings/email/otp-mode",
+    "/settings/email/active-provider",
     {
       method: "PATCH",
-      body: JSON.stringify({ otp_mode }),
+      body: JSON.stringify({ provider }),
     },
     token
   )
-  return handleResponse<{ otp_mode: "test" | "production" }>(
+  return handleResponse<EmailCredential>(
     response,
-    "Failed to update OTP mode"
+    "Failed to switch active OTP & email delivery provider"
   )
 }
 

@@ -21,9 +21,8 @@ export interface SaveRazorpayCredentialsPayload {
   status?: number
 }
 
-export type EmailProviderType = "mailjet" | "smtp"
+export type EmailProviderType = "mailjet" | "zoho" | "smtp"
 export type SmtpEncryptionType = "tls" | "ssl" | "none"
-export type OtpModeType = "test" | "production"
 
 export interface EmailCredential {
   id: number
@@ -35,7 +34,7 @@ export interface EmailCredential {
   api_secret?: string | null
   api_secret_masked: string | null
   has_api_secret: boolean
-  // SMTP fields
+  // Zoho Mail & SMTP fields
   smtp_host: string | null
   smtp_port: number | null
   smtp_username: string | null
@@ -43,9 +42,8 @@ export interface EmailCredential {
   smtp_password_masked: string | null
   has_smtp_password: boolean
   smtp_encryption: SmtpEncryptionType | null
-  // Status, Default & OTP Mode
+  // Status & Active Default
   is_default: 0 | 1
-  otp_mode?: OtpModeType
   status: 1 | 2
   created_on?: string
   created_at?: string
