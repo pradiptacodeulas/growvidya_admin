@@ -4,6 +4,7 @@ import { usePermission } from "@/hooks/usePermission"
 import {
   fetchNotificationPricingApi,
   updateNotificationPricingApi,
+  toggleNotificationPricingStatusApi,
 } from "@/services/settingsService"
 import type { NotificationPricingItem } from "@/types/settings"
 import { Button } from "@/components/ui/button"
@@ -26,6 +27,7 @@ import {
   IndianRupee,
   Power,
   ShieldAlert,
+  XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -42,6 +44,7 @@ export default function NotificationPlans() {
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [togglingChannel, setTogglingChannel] = useState<string | null>(null)
 
   const loadPricing = async (showSkeleton = true) => {
     if (!token) return
@@ -71,6 +74,34 @@ export default function NotificationPlans() {
     setPricingItems((prev) =>
       prev.map((item, idx) => (idx === index ? { ...item, [field]: value } : item))
     )
+  }
+
+  const handleToggleStatus = async (item: NotificationPricingItem) => {
+    if (!token || !canUpdatePricing || togglingChannel === item.channel) return
+    const nextStatus: 1 | 2 = Number(item.status) === 1 ? 2 : 1
+    setTogglingChannel(item.channel)
+
+    try {
+      const updated = await toggleNotificationPricingStatusApi(
+        token,
+        item.id ?? item.channel,
+        nextStatus
+      )
+      setPricingItems((prev) =>
+        prev.map((it) =>
+          it.channel === item.channel
+            ? { ...it, status: Number(updated.status) as 1 | 2 }
+            : it
+        )
+      )
+      toast.success(
+        `${item.pack_name} is now ${Number(updated.status) === 1 ? "Active" : "Inactive"}.`
+      )
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update notification status.")
+    } finally {
+      setTogglingChannel(null)
+    }
   }
 
   const handleSave = async () => {
@@ -270,22 +301,42 @@ export default function NotificationPlans() {
 
                       <button
                         type="button"
-                        disabled={!canUpdatePricing}
-                        onClick={() =>
-                          handleUpdateField(idx, "status", isActive ? 2 : 1)
+                        disabled={!canUpdatePricing || togglingChannel === item.channel}
+                        onClick={() => handleToggleStatus(item)}
+                        title={
+                          canUpdatePricing
+                            ? `Click to mark as ${isActive ? "Inactive" : "Active"}`
+                            : undefined
                         }
-                        className="cursor-pointer"
+                        className={`transition-transform ${
+                          canUpdatePricing ? "cursor-pointer active:scale-95" : "cursor-default"
+                        } ${togglingChannel === item.channel ? "opacity-50 pointer-events-none" : ""}`}
                       >
-                        <Badge
-                          variant={isActive ? "default" : "secondary"}
-                          className={
-                            isActive
-                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[11px]"
-                              : "text-[11px]"
-                          }
-                        >
-                          {isActive ? "Active" : "Inactive"}
-                        </Badge>
+                        {isActive ? (
+                          <Badge
+                            variant="default"
+                            className="capitalize gap-1 text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25 border-emerald-500/30"
+                          >
+                            {togglingChannel === item.channel ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            )}
+                            Active
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="secondary"
+                            className="capitalize gap-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted"
+                          >
+                            {togglingChannel === item.channel ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <XCircle className="h-3 w-3" />
+                            )}
+                            Inactive
+                          </Badge>
+                        )}
                       </button>
                     </div>
 

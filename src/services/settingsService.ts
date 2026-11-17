@@ -338,6 +338,25 @@ export async function updateNotificationPricingApi(
   )
 }
 
+export async function toggleNotificationPricingStatusApi(
+  token: string,
+  idOrChannel: number | string,
+  status: 1 | 2 | 4
+): Promise<NotificationPricingItem> {
+  const response = await makeRequest(
+    `/notifications/pricing/${encodeURIComponent(String(idOrChannel))}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    },
+    token
+  )
+  return handleResponse<NotificationPricingItem>(
+    response,
+    "Failed to update notification status"
+  )
+}
+
 export async function fetchNotificationBuyersApi(
   token: string,
   params?: { search?: string; page?: number; limit?: number }
