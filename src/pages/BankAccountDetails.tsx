@@ -99,7 +99,7 @@ export default function BankAccountDetails() {
 
   const handleToggleStatus = async () => {
     if (!token || !account) return
-    const nextStatus = account.status ? 0 : 1
+    const nextStatus = Number(account.status) === 1 ? 2 : 1
     try {
       const updated = await toggleBankAccountStatusApi(token, account.id, nextStatus)
       setAccount(updated)
@@ -175,7 +175,7 @@ export default function BankAccountDetails() {
   }
 
   const isDefault = Boolean(account.is_default)
-  const isActive = Boolean(account.status)
+  const isActive = Number(account.status) === 1
   const qrUrl = getFullImageUrl(account.qr_code_image)
 
   return (

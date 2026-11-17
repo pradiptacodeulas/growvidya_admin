@@ -72,6 +72,19 @@ export interface RfidCardBuyerOrder {
   total_amount: number | string
   order_status: RfidOrderStatus
   payment_transaction_id: string | null
+  payment_order_id?: number | null
+  payment_order_no?: string | null
+  payment_order_type?: string | null
+  payment_method?: string | null
+  payment_order_status?: string | null
+  utr_number?: string | null
+  payment_order_total?: number | string | null
+  bank_account_id?: number | null
+  company_bank_name?: string | null
+  company_bank_title?: string | null
+  company_bank_beneficiary?: string | null
+  company_account_number?: string | null
+  company_ifsc_code?: string | null
   shipping_address: string | null
   remarks: string | null
   created_at: string

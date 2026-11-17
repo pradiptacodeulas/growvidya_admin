@@ -165,7 +165,7 @@ export default function CouponDetails() {
 
   const handleToggleStatus = async () => {
     if (!token || !coupon) return
-    const nextStatus = coupon.status === 1 ? 0 : 1
+    const nextStatus = coupon.status === 1 ? 2 : 1
     try {
       await toggleCouponStatusApi(token, coupon.id, nextStatus)
       toast.success(`Coupon marked as ${nextStatus === 1 ? "Active" : "Inactive"}.`)
@@ -204,7 +204,8 @@ export default function CouponDetails() {
       ? Math.min(100, Math.round((coupon.used_count / coupon.max_uses) * 100))
       : null
 
-  const isExpired = coupon ? new Date(coupon.end_date).getTime() < currentTime : false
+  const todayIST = new Date(currentTime).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })
+  const isExpired = Boolean(coupon?.end_date && String(coupon.end_date).slice(0, 10) < todayIST)
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">

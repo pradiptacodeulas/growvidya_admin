@@ -1,4 +1,4 @@
-import { API_BASE_URL, SERVER_BASE_URL } from "@/config/api"
+import { API_BASE_URL } from "@/config/api"
 import type {
   StoragePlan,
   CapacityUnit,
@@ -91,27 +91,13 @@ export async function fetchStoragePlansApi(
     counts: data?.counts ?? EMPTY_COUNTS,
   })
 
-  try {
-    const res = await fetch(`${API_BASE_URL}/storage-plans${queryString}`, {
-      method: "GET",
-      headers: getAuthHeaders(token),
-    })
-    return normalize(
-      await handleResponse<StoragePlanListResult>(res, "Failed to retrieve storage plans.")
-    )
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status
-    if (status === 404 || status === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/v1/storage-plans${queryString}`, {
-        method: "GET",
-        headers: getAuthHeaders(token),
-      })
-      return normalize(
-        await handleResponse<StoragePlanListResult>(fallbackRes, "Failed to retrieve storage plans.")
-      )
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/storage-plans${queryString}`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+  return normalize(
+    await handleResponse<StoragePlanListResult>(res, "Failed to retrieve storage plans.")
+  )
 }
 
 export async function fetchStoragePlanBuyersApi(
@@ -168,46 +154,22 @@ export async function updateStoragePlanBuyerOrderApi(
 }
 
 export async function fetchCapacityUnitsApi(token: string): Promise<CapacityUnit[]> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/storage-plans/units`, {
-      method: "GET",
-      headers: getAuthHeaders(token),
-    })
-    return await handleResponse<CapacityUnit[]>(res, "Failed to retrieve capacity units.")
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status
-    if (status === 404 || status === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/v1/storage-plans/units`, {
-        method: "GET",
-        headers: getAuthHeaders(token),
-      })
-      return await handleResponse<CapacityUnit[]>(fallbackRes, "Failed to retrieve capacity units.")
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/storage-plans/units`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+  return await handleResponse<CapacityUnit[]>(res, "Failed to retrieve capacity units.")
 }
 
 export async function fetchStoragePlanByIdApi(
   token: string,
   id: number
 ): Promise<StoragePlan> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/storage-plans/${id}`, {
-      method: "GET",
-      headers: getAuthHeaders(token),
-    })
-    return await handleResponse<StoragePlan>(res, "Failed to retrieve storage plan details.")
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status
-    if (status === 404 || status === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/v1/storage-plans/${id}`, {
-        method: "GET",
-        headers: getAuthHeaders(token),
-      })
-      return await handleResponse<StoragePlan>(fallbackRes, "Failed to retrieve storage plan details.")
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/storage-plans/${id}`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+  return await handleResponse<StoragePlan>(res, "Failed to retrieve storage plan details.")
 }
 
 export async function createStoragePlanApi(

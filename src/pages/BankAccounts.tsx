@@ -133,7 +133,7 @@ export default function BankAccounts() {
   // Toggle Status
   const handleToggleStatus = async (account: BankAccount) => {
     if (!token) return
-    const nextStatus = account.status ? 0 : 1
+    const nextStatus = Number(account.status) === 1 ? 2 : 1
     try {
       await toggleBankAccountStatusApi(token, account.id, nextStatus)
       toast.success(`Account marked as ${nextStatus === 1 ? "Active" : "Inactive"}.`)
@@ -318,7 +318,7 @@ export default function BankAccounts() {
               ) : (
                 accounts.map((account) => {
                   const isDefault = Boolean(account.is_default)
-                  const isActive = Boolean(account.status)
+                  const isActive = Number(account.status) === 1
 
                   return (
                     <TableRow

@@ -202,7 +202,7 @@ export default function Settings() {
   const [smtpUsername, setSmtpUsername] = useState("")
   const [smtpPassword, setSmtpPassword] = useState("")
   const [smtpEncryption, setSmtpEncryption] = useState<SmtpEncryptionType>("tls")
-  const [emailStatus, setEmailStatus] = useState<0 | 1>(1)
+  const [emailStatus, setEmailStatus] = useState<1 | 2>(1)
   const [emailIsDefault, setEmailIsDefault] = useState<0 | 1>(1)
   const [showEmailSecret, setShowEmailSecret] = useState(false)
   const [emailFormError, setEmailFormError] = useState<string | null>(null)
@@ -353,7 +353,7 @@ export default function Settings() {
 
   const handleToggleStatus = async () => {
     if (!token || !credentials) return
-    const nextStatus = credentials.status === 1 ? 0 : 1
+    const nextStatus = credentials.status === 1 ? 2 : 1
     try {
       const updated = await updateRazorpayCredentialsApi(token, credentials.id, {
         key_id: credentials.key_id,
@@ -400,11 +400,11 @@ export default function Settings() {
       setFromName(existing.from_name || "")
       setFromEmail(existing.from_email || "")
       setApiKey(existing.api_key || "")
-      setApiSecret("")
+      setApiSecret(existing.api_secret || "")
       setSmtpHost(existing.smtp_host || "")
       setSmtpPort(String(existing.smtp_port || 587))
       setSmtpUsername(existing.smtp_username || "")
-      setSmtpPassword("")
+      setSmtpPassword(existing.smtp_password || "")
       setSmtpEncryption(existing.smtp_encryption || "tls")
       setEmailStatus(existing.status)
       setEmailIsDefault(existing.is_default)
@@ -531,7 +531,7 @@ export default function Settings() {
 
   const handleToggleEmailStatus = async (cred: EmailCredential) => {
     if (!token || actionId === cred.id) return
-    const nextStatus: 0 | 1 = cred.status === 1 ? 0 : 1
+    const nextStatus: 1 | 2 = cred.status === 1 ? 2 : 1
     setActionId(cred.id)
     try {
       await toggleEmailCredentialStatusApi(token, cred.id, nextStatus)
@@ -1675,8 +1675,8 @@ export default function Settings() {
                 <Button
                   type="button"
                   size="sm"
-                  variant={status === 0 ? "default" : "outline"}
-                  onClick={() => setStatus(0)}
+                  variant={status === 2 ? "default" : "outline"}
+                  onClick={() => setStatus(2)}
                   className="h-8 text-xs cursor-pointer"
                 >
                   Inactive (Disabled)
@@ -2063,9 +2063,9 @@ export default function Settings() {
                   <Button
                     type="button"
                     size="sm"
-                    variant={emailStatus === 0 ? "default" : "outline"}
+                    variant={emailStatus === 2 ? "default" : "outline"}
                     disabled={emailIsDefault === 1}
-                    onClick={() => setEmailStatus(0)}
+                    onClick={() => setEmailStatus(2)}
                     className="h-8 text-xs cursor-pointer"
                   >
                     Inactive

@@ -27,7 +27,7 @@ export async function fetchCouponsApi(
   }
   if (params?.status !== undefined && params.status !== "all" && params.status !== "") {
     const statusVal =
-      params.status === "active" ? "1" : params.status === "inactive" ? "0" : String(params.status)
+      params.status === "active" ? "1" : params.status === "inactive" ? "2" : String(params.status)
     query.append("status", statusVal)
   }
   if (params?.discount_type && params.discount_type !== "all" && params.discount_type !== "") {
@@ -36,25 +36,13 @@ export async function fetchCouponsApi(
 
   const queryString = query.toString() ? `?${query.toString()}` : ""
 
-  // Use /api/v1/coupons (with fallback to saas-admin/coupons if needed)
-  const baseUrl = API_BASE_URL.replace(/\/saas-admin\/?$/, "")
-  let response = await fetch(`${baseUrl}/coupons${queryString}`, {
+  const response = await fetch(`${API_BASE_URL}/coupons${queryString}`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   })
-
-  if (response.status === 404) {
-    response = await fetch(`${API_BASE_URL}/coupons${queryString}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    })
-  }
 
 
   if (!response.ok) {
@@ -77,10 +65,11 @@ export async function fetchCouponsApi(
     throw new Error(result.message || "Failed to fetch coupons")
   }
 
-  // Handle paginated response: { data: { coupons: [...], pagination: {...} } }
+  // Handle paginated response: { data: { coupons: [...], summary: {...}, pagination: {...} } }
   if (result.data && !Array.isArray(result.data) && Array.isArray(result.data.coupons)) {
     return {
       coupons: result.data.coupons,
+      summary: result.data.summary,
       pagination: result.data.pagination || {
         total: result.data.coupons.length,
         page: params?.page ?? 1,
@@ -117,26 +106,13 @@ export async function fetchCouponByIdApi(
   token: string,
   id: number | string
 ): Promise<CouponDetail> {
-  const url = `${API_BASE_URL}/coupons/${id}`
-  let response = await fetch(url, {
+  const response = await fetch(`${API_BASE_URL}/coupons/${id}`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
   })
-
-  // Fallback to /api/v1/coupons/:id if 404
-  if (response.status === 404) {
-    const fallbackUrl = `${API_BASE_URL.replace(/\/saas-admin\/?$/, "")}/coupons/${id}`
-    response = await fetch(fallbackUrl, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    })
-  }
 
   if (!response.ok) {
     let errorMessage = `Request failed with status ${response.status}`
@@ -165,8 +141,7 @@ export async function createCouponApi(
   token: string,
   payload: CreateCouponPayload
 ): Promise<CouponDetail> {
-  const url = `${API_BASE_URL}/coupons`
-  let response = await fetch(url, {
+  const response = await fetch(`${API_BASE_URL}/coupons`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -174,19 +149,6 @@ export async function createCouponApi(
     },
     body: JSON.stringify(payload),
   })
-
-  // URL fallback if saas-admin subpath returned 404
-  if (response.status === 404) {
-    const fallbackUrl = `${API_BASE_URL.replace(/\/saas-admin\/?$/, "")}/coupons`
-    response = await fetch(fallbackUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    })
-  }
 
   if (!response.ok) {
     let errorMessage = `Failed to create coupon (${response.status})`
@@ -216,8 +178,7 @@ export async function updateCouponApi(
   id: number | string,
   payload: UpdateCouponPayload
 ): Promise<CouponDetail> {
-  const url = `${API_BASE_URL}/coupons/${id}`
-  let response = await fetch(url, {
+  const response = await fetch(`${API_BASE_URL}/coupons/${id}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -225,18 +186,6 @@ export async function updateCouponApi(
     },
     body: JSON.stringify(payload),
   })
-
-  if (response.status === 404) {
-    const fallbackUrl = `${API_BASE_URL.replace(/\/saas-admin\/?$/, "")}/coupons/${id}`
-    response = await fetch(fallbackUrl, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    })
-  }
 
   if (!response.ok) {
     let errorMessage = `Failed to update coupon (${response.status})`
@@ -265,25 +214,13 @@ export async function deleteCouponApi(
   token: string,
   id: number | string
 ): Promise<boolean> {
-  const url = `${API_BASE_URL}/coupons/${id}`
-  let response = await fetch(url, {
+  const response = await fetch(`${API_BASE_URL}/coupons/${id}`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
   })
-
-  if (response.status === 404) {
-    const fallbackUrl = `${API_BASE_URL.replace(/\/saas-admin\/?$/, "")}/coupons/${id}`
-    response = await fetch(fallbackUrl, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    })
-  }
 
   if (!response.ok) {
     let errorMessage = `Failed to delete coupon (${response.status})`
@@ -308,8 +245,7 @@ export async function toggleCouponStatusApi(
   id: number | string,
   status: number
 ): Promise<boolean> {
-  const url = `${API_BASE_URL}/coupons/${id}/status`
-  let response = await fetch(url, {
+  const response = await fetch(`${API_BASE_URL}/coupons/${id}/status`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -317,18 +253,6 @@ export async function toggleCouponStatusApi(
     },
     body: JSON.stringify({ status }),
   })
-
-  if (response.status === 404) {
-    const fallbackUrl = `${API_BASE_URL.replace(/\/saas-admin\/?$/, "")}/coupons/${id}/status`
-    response = await fetch(fallbackUrl, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ status }),
-    })
-  }
 
   if (!response.ok) {
     let errorMessage = `Failed to toggle coupon status (${response.status})`
@@ -347,5 +271,3 @@ export async function toggleCouponStatusApi(
 
   return true
 }
-
-

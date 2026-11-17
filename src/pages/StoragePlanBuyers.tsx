@@ -4,10 +4,15 @@ import {
   fetchStoragePlanBuyersApi,
   updateStoragePlanBuyerOrderApi,
 } from "@/services/storagePlanService"
+import {
+  approvePaymentOrderApi,
+  rejectPaymentOrderApi,
+} from "@/services/subscriptionService"
 import type {
   StorageOrderStatus,
   StoragePlanBuyerCounts,
   StoragePlanBuyerOrder,
+  UpdateStoragePlanBuyerPayload,
 } from "@/types/storagePlan"
 import {
   DEFAULT_PAGE_SIZE,
@@ -103,7 +108,9 @@ function getBasePlanStatusBadge(status: string | null) {
 export default function StoragePlanBuyers() {
   const token = useAppSelector((state) => state.auth.token)
   const { can } = usePermission()
-  const canManage = can("storage_plans", ["can_manage", "can_edit"])
+  const canManage =
+    can("storage_buyers", ["can_manage", "can_edit"]) ||
+    can("storage_plans", ["can_manage", "can_edit"])
 
   const [buyers, setBuyers] = useState<StoragePlanBuyerOrder[]>([])
   const [counts, setCounts] = useState<StoragePlanBuyerCounts>(INITIAL_COUNTS)
@@ -126,6 +133,7 @@ export default function StoragePlanBuyers() {
   const [editEndDate, setEditEndDate] = useState("")
   const [editRemarks, setEditRemarks] = useState("")
   const [isSaving, setIsSaving] = useState(false)
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -170,12 +178,17 @@ export default function StoragePlanBuyers() {
     if (!token || !editingOrder) return
     setIsSaving(true)
     try {
-      await updateStoragePlanBuyerOrderApi(token, editingOrder.id, {
+      const payload: UpdateStoragePlanBuyerPayload = {
         order_status: editOrderStatus,
-        start_date: editStartDate || null,
-        end_date: editEndDate || null,
         remarks: editRemarks.trim() || null,
-      })
+      }
+      if (editStartDate.trim()) {
+        payload.start_date = editStartDate.trim()
+      }
+      if (editEndDate.trim()) {
+        payload.end_date = editEndDate.trim()
+      }
+      await updateStoragePlanBuyerOrderApi(token, editingOrder.id, payload)
       toast.success("Storage plan order updated successfully.")
       setEditingOrder(null)
       loadBuyers()
@@ -183,6 +196,38 @@ export default function StoragePlanBuyers() {
       toast.error(err instanceof Error ? err.message : "Failed to update storage order.")
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleVerifyPaymentOrder = async (approve: boolean) => {
+    if (!token || !editingOrder?.payment_order_id) return
+    setIsVerifyingPayment(true)
+    try {
+      if (approve) {
+        await approvePaymentOrderApi(
+          token,
+          editingOrder.payment_order_id,
+          editRemarks.trim() || "Offline UTR payment order verified via Storage Plan Buyers"
+        )
+        toast.success(
+          `Payment Order ${editingOrder.payment_order_no || `#${editingOrder.payment_order_id}`} verified! Digital entitlements activated and pending hardware moved to Approved.`
+        )
+      } else {
+        await rejectPaymentOrderApi(
+          token,
+          editingOrder.payment_order_id,
+          editRemarks.trim() || "Offline UTR payment order rejected via Storage Plan Buyers"
+        )
+        toast.info(
+          `Payment Order ${editingOrder.payment_order_no || `#${editingOrder.payment_order_id}`} rejected.`
+        )
+      }
+      setEditingOrder(null)
+      loadBuyers()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to process payment order verification.")
+    } finally {
+      setIsVerifyingPayment(false)
     }
   }
 
@@ -233,7 +278,7 @@ export default function StoragePlanBuyers() {
       </div>
 
       {/* KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="border-border/60 shadow-xs py-0">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
@@ -284,6 +329,23 @@ export default function StoragePlanBuyers() {
             </div>
             <div className="size-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600">
               <Clock className="size-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 shadow-xs py-0">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">B2 Cloud Storage Used</p>
+              <p className="text-2xl font-bold mt-1 text-violet-600 dark:text-violet-400">
+                {counts.total_b2_formatted || "0 B"}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {counts.total_active_files || 0} active files
+              </p>
+            </div>
+            <div className="size-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-600">
+              <HardDrive className="size-5" />
             </div>
           </CardContent>
         </Card>
@@ -447,9 +509,14 @@ export default function StoragePlanBuyers() {
                     </TableCell>
 
                     <TableCell>
-                      <span className="font-mono font-bold text-xs px-2 py-1 rounded-md bg-primary/10 text-primary border border-primary/20">
-                        {order.storage_capacity} {order.unit_code}
-                      </span>
+                      <div className="space-y-1">
+                        <span className="font-mono font-bold text-xs px-2 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 inline-block">
+                          {order.storage_capacity} {order.unit_code}
+                        </span>
+                        <p className="text-[11px] text-muted-foreground">
+                          Used: <span className="font-medium text-foreground">{order.used_storage_formatted || "0 B"}</span>
+                        </p>
+                      </div>
                     </TableCell>
 
                     <TableCell>
@@ -643,6 +710,34 @@ export default function StoragePlanBuyers() {
                     <span className="text-muted-foreground">Payment Ref:</span>
                     <p className="font-mono truncate">{selectedOrder.payment_transaction_id || "—"}</p>
                   </div>
+                  {selectedOrder.payment_order_no && (
+                    <div>
+                      <span className="text-muted-foreground">Payment Order:</span>
+                      <p className="font-mono font-semibold text-foreground">
+                        {selectedOrder.payment_order_no}{" "}
+                        <span className="uppercase text-[10px] text-muted-foreground">
+                          ({selectedOrder.payment_order_status || "—"})
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                  {selectedOrder.company_bank_name && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Received in Bank A/C:</span>
+                      <p className="font-medium text-foreground">
+                        {selectedOrder.company_bank_name}
+                        {selectedOrder.company_account_number
+                          ? ` • A/C ${selectedOrder.company_account_number}`
+                          : ""}
+                      </p>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground">School B2 Used:</span>
+                    <p className="font-semibold text-violet-600 dark:text-violet-400">
+                      {selectedOrder.used_storage_formatted || "0 B"} ({selectedOrder.active_files_count || 0} files)
+                    </p>
+                  </div>
                 </div>
 
                 {selectedOrder.remarks && (
@@ -687,6 +782,63 @@ export default function StoragePlanBuyers() {
           </DialogHeader>
 
           <div className="space-y-3.5 py-2">
+            {editingOrder?.payment_order_id &&
+              editingOrder.payment_order_status === "pending_verification" && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-2 text-xs">
+                  <div className="font-semibold text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                    <span>Offline UTR Payment Verification Required</span>
+                    <span className="font-mono">{editingOrder.payment_order_no}</span>
+                  </div>
+                  <div className="text-muted-foreground space-y-0.5">
+                    <p>
+                      UTR Ref:{" "}
+                      <strong className="font-mono text-foreground">
+                        {editingOrder.utr_number || editingOrder.payment_transaction_id || "—"}
+                      </strong>
+                      {editingOrder.payment_order_total
+                        ? ` • Order Total: ${formatPrice(editingOrder.payment_order_total)}`
+                        : ""}
+                    </p>
+                    {editingOrder.company_bank_name && (
+                      <p>
+                        Company Bank:{" "}
+                        <strong className="text-foreground">
+                          {editingOrder.company_bank_name}
+                          {editingOrder.company_account_number
+                            ? ` (A/C ${editingOrder.company_account_number})`
+                            : ""}
+                        </strong>
+                      </p>
+                    )}
+                    <p className="text-[11px] pt-0.5">
+                      Verifying this UTR activates paid digital items for a full cycle and approves any pending hardware in this payment order.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isVerifyingPayment || isSaving}
+                      onClick={() => handleVerifyPaymentOrder(true)}
+                      className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                    >
+                      {isVerifyingPayment ? <Loader2 className="size-3.5 animate-spin mr-1" /> : null}
+                      Verify UTR Payment Order
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={isVerifyingPayment || isSaving}
+                      onClick={() => handleVerifyPaymentOrder(false)}
+                      className="h-7 text-xs text-rose-600 border-rose-300 hover:bg-rose-500/10 cursor-pointer"
+                    >
+                      Reject UTR
+                    </Button>
+                  </div>
+                </div>
+              )}
+
             <div className="space-y-1.5">
               <Label>Order Status</Label>
               <select
@@ -694,11 +846,18 @@ export default function StoragePlanBuyers() {
                 onChange={(e) => setEditOrderStatus(e.target.value as StorageOrderStatus)}
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
               >
-                {ORDER_STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
+                {ORDER_STATUS_OPTIONS.map((opt) => {
+                  const isUnpaidOrder =
+                    Boolean(editingOrder?.payment_order_id) &&
+                    editingOrder?.payment_order_status !== "paid"
+                  const disabledOpt = isUnpaidOrder && opt.value === "active"
+                  return (
+                    <option key={opt.value} value={opt.value} disabled={disabledOpt}>
+                      {opt.label}
+                      {disabledOpt ? " (Verify UTR payment first)" : ""}
+                    </option>
+                  )
+                })}
               </select>
             </div>
 

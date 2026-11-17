@@ -160,7 +160,7 @@ export default function PackageItems() {
 
   const handleToggleStatus = async (item: SubscriptionItem) => {
     if (!token || !item.id) return
-    const newStatus = item.status === 1 ? 0 : 1
+    const newStatus = item.status === 1 ? 2 : 1
     setTogglingItemId(item.id)
 
     try {

@@ -110,7 +110,7 @@ export default function AttendanceMachines() {
     try {
       const data = await fetchAttendanceMachinesApi(token, {
         search: debouncedSearch,
-        status: statusFilter === "all" ? undefined : statusFilter === "active" ? 1 : 0,
+        status: statusFilter === "all" ? undefined : statusFilter === "active" ? 1 : 2,
         page,
         limit: pageSize,
       })
@@ -167,7 +167,7 @@ export default function AttendanceMachines() {
   // Toggle status
   const handleToggleStatus = async (machine: AttendanceMachine) => {
     if (!token || togglingId !== null) return
-    const newStatus = machine.status === 1 ? 0 : 1
+    const newStatus = machine.status === 1 ? 2 : 1
     setTogglingId(machine.id)
 
     try {

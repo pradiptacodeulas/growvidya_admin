@@ -6,7 +6,12 @@ import type {
   SaveEmailCredentialPayload,
   CommunicationSettings,
   NotificationPricingItem,
+  NotificationBuyerWallet,
+  NotificationBuyerCounts,
+  NotificationLedgerEntry,
+  PendingNotificationOrder,
 } from "@/types/settings"
+import type { PaginationMeta } from "@/types/pagination"
 
 async function makeRequest(
   endpointPath: string,
@@ -198,7 +203,7 @@ export async function setDefaultEmailProviderApi(
 export async function toggleEmailCredentialStatusApi(
   token: string,
   id: number | string,
-  status: 0 | 1
+  status: 1 | 2
 ): Promise<EmailCredential> {
   const response = await makeRequest(
     `/settings/email/${id}/status`,
@@ -244,6 +249,24 @@ export async function sendTestEmailApi(
   return handleResponse<{ provider: string }>(
     response,
     "Failed to send test email"
+  )
+}
+
+export async function updateEmailOtpModeApi(
+  token: string,
+  otp_mode: "test" | "production"
+): Promise<{ otp_mode: "test" | "production" }> {
+  const response = await makeRequest(
+    "/settings/email/otp-mode",
+    {
+      method: "PATCH",
+      body: JSON.stringify({ otp_mode }),
+    },
+    token
+  )
+  return handleResponse<{ otp_mode: "test" | "production" }>(
+    response,
+    "Failed to update OTP mode"
   )
 }
 
@@ -302,7 +325,7 @@ export async function updateNotificationPricingApi(
   items: NotificationPricingItem[]
 ): Promise<NotificationPricingItem[]> {
   const response = await makeRequest(
-    "/settings/notification-pricing",
+    "/notifications/pricing",
     {
       method: "PUT",
       body: JSON.stringify({ items }),
@@ -312,5 +335,115 @@ export async function updateNotificationPricingApi(
   return handleResponse<NotificationPricingItem[]>(
     response,
     "Failed to update notification credit pricing"
+  )
+}
+
+export async function fetchNotificationBuyersApi(
+  token: string,
+  params?: { search?: string; page?: number; limit?: number }
+): Promise<{
+  buyers: NotificationBuyerWallet[]
+  pending_orders?: PendingNotificationOrder[]
+  counts: NotificationBuyerCounts
+  pagination: PaginationMeta
+}> {
+  const query = new URLSearchParams()
+  if (params?.search) query.set("search", params.search)
+  if (params?.page) query.set("page", String(params.page))
+  if (params?.limit) query.set("limit", String(params.limit))
+  const qs = query.toString() ? `?${query.toString()}` : ""
+  const response = await makeRequest(
+    `/notifications/buyers${qs}`,
+    { method: "GET" },
+    token
+  )
+  const data = await handleResponse<{
+    buyers: NotificationBuyerWallet[]
+    pending_orders?: PendingNotificationOrder[]
+    counts: NotificationBuyerCounts
+    pagination: Partial<PaginationMeta> & {
+      total_items?: number
+      total_pages?: number
+      current_page?: number
+      per_page?: number
+      has_next_page?: boolean
+      has_prev_page?: boolean
+    }
+  }>(response, "Failed to fetch notification credit buyers")
+
+  const rawPag = data?.pagination || {}
+  const page = Number(rawPag.page ?? rawPag.current_page ?? params?.page ?? 1) || 1
+  const limit = Number(rawPag.limit ?? rawPag.per_page ?? params?.limit ?? 10) || 10
+  const total = Number(rawPag.total ?? rawPag.total_items ?? 0) || 0
+  const totalPages = Math.max(
+    1,
+    Number(rawPag.totalPages ?? rawPag.total_pages ?? Math.ceil(total / limit)) || 1
+  )
+
+  return {
+    buyers: Array.isArray(data?.buyers) ? data.buyers : [],
+    pending_orders: data?.pending_orders,
+    counts: data?.counts,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNextPage: Boolean(rawPag.hasNextPage ?? rawPag.has_next_page ?? page < totalPages),
+      hasPrevPage: Boolean(rawPag.hasPrevPage ?? rawPag.has_prev_page ?? page > 1),
+    },
+  }
+}
+
+export async function approveNotificationOrderApi(
+  token: string,
+  orderId: number | string,
+  adminNote?: string
+): Promise<unknown> {
+  const response = await makeRequest(
+    `/notifications/orders/${orderId}/approve`,
+    {
+      method: "POST",
+      body: JSON.stringify({ admin_note: adminNote || "Approved by SaaS Admin" }),
+    },
+    token
+  )
+  return handleResponse<unknown>(
+    response,
+    "Failed to approve offline notification credit order"
+  )
+}
+
+export async function rejectNotificationOrderApi(
+  token: string,
+  orderId: number | string,
+  reason: string
+): Promise<unknown> {
+  const response = await makeRequest(
+    `/notifications/orders/${orderId}/reject`,
+    {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    },
+    token
+  )
+  return handleResponse<unknown>(
+    response,
+    "Failed to reject offline notification credit order"
+  )
+}
+
+export async function fetchNotificationBuyerLedgerApi(
+  token: string,
+  schoolId: number | string
+): Promise<NotificationLedgerEntry[]> {
+  const response = await makeRequest(
+    `/notifications/buyers/${schoolId}/ledger`,
+    { method: "GET" },
+    token
+  )
+  return handleResponse<NotificationLedgerEntry[]>(
+    response,
+    "Failed to fetch notification wallet ledger"
   )
 }

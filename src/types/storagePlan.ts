@@ -71,6 +71,19 @@ export interface StoragePlanBuyerOrder {
   unit_price: number | string
   total_amount: number | string
   payment_transaction_id: string | null
+  payment_order_id?: number | null
+  payment_order_no?: string | null
+  payment_order_type?: string | null
+  payment_method?: string | null
+  payment_order_status?: string | null
+  utr_number?: string | null
+  payment_order_total?: number | string | null
+  bank_account_id?: number | null
+  company_bank_name?: string | null
+  company_bank_title?: string | null
+  company_bank_beneficiary?: string | null
+  company_account_number?: string | null
+  company_ifsc_code?: string | null
   order_status: StorageOrderStatus
   start_date: string | null
   end_date: string | null
@@ -100,6 +113,9 @@ export interface StoragePlanBuyerOrder {
   base_subscription_status: string | null
   base_start_date: string | null
   base_end_date: string | null
+  used_storage_bytes?: number
+  used_storage_formatted?: string
+  active_files_count?: number
 }
 
 export interface StoragePlanBuyerCounts {
@@ -110,6 +126,13 @@ export interface StoragePlanBuyerCounts {
   active_count: number
   expired_count: number
   cancelled_count: number
+  total_b2_bytes?: number
+  total_b2_formatted?: string
+  total_active_files?: number
+  schools_bytes?: number
+  schools_formatted?: string
+  platform_bytes?: number
+  platform_formatted?: string
 }
 
 export interface StoragePlanBuyerListResult {

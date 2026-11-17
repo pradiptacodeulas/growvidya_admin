@@ -1,4 +1,4 @@
-import { API_BASE_URL, SERVER_BASE_URL } from "@/config/api"
+import { API_BASE_URL } from "@/config/api"
 import { EMPTY_COUNTS, EMPTY_PAGINATION, type PaginationParams } from "@/types/pagination"
 import type {
   RfidCard,
@@ -106,28 +106,12 @@ export async function fetchRfidCardsApi(
 
   const queryString = query.toString() ? `?${query.toString()}` : ""
 
-  try {
-    const res = await fetch(`${API_BASE_URL}/rfid-cards${queryString}`, {
-      method: "GET",
-      headers: getAuthHeaders(token),
-    })
-    const data = await handleResponse<RfidCardListResult | RfidCard[]>(res, "Failed to retrieve RFID cards.")
-    return normalizeRfidCardList(data)
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status
-    if (status === 404 || status === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/rfid-cards${queryString}`, {
-        method: "GET",
-        headers: getAuthHeaders(token),
-      })
-      const fallbackData = await handleResponse<RfidCardListResult | RfidCard[]>(
-        fallbackRes,
-        "Failed to retrieve RFID cards."
-      )
-      return normalizeRfidCardList(fallbackData)
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/rfid-cards${queryString}`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+  const data = await handleResponse<RfidCardListResult | RfidCard[]>(res, "Failed to retrieve RFID cards.")
+  return normalizeRfidCardList(data)
 }
 
 export async function fetchRfidCardBuyersApi(
@@ -187,23 +171,11 @@ export async function fetchRfidCardByIdApi(
   token: string,
   id: number
 ): Promise<RfidCard> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/rfid-cards/${id}`, {
-      method: "GET",
-      headers: getAuthHeaders(token),
-    })
-    return await handleResponse<RfidCard>(res, "Failed to retrieve RFID card details.")
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status
-    if (status === 404 || status === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/rfid-cards/${id}`, {
-        method: "GET",
-        headers: getAuthHeaders(token),
-      })
-      return await handleResponse<RfidCard>(fallbackRes, "Failed to retrieve RFID card details.")
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/rfid-cards/${id}`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+  return await handleResponse<RfidCard>(res, "Failed to retrieve RFID card details.")
 }
 
 export async function createRfidCardApi(
@@ -233,25 +205,12 @@ export async function createRfidCardApi(
     body = JSON.stringify(payload)
   }
 
-  try {
-    const res = await fetch(`${API_BASE_URL}/rfid-cards`, {
-      method: "POST",
-      headers: getAuthHeaders(token, isJson),
-      body,
-    })
-    return await handleResponse<RfidCard>(res, "Failed to create RFID card.")
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status
-    if (status === 404 || status === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/rfid-cards`, {
-        method: "POST",
-        headers: getAuthHeaders(token, isJson),
-        body,
-      })
-      return await handleResponse<RfidCard>(fallbackRes, "Failed to create RFID card.")
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/rfid-cards`, {
+    method: "POST",
+    headers: getAuthHeaders(token, isJson),
+    body,
+  })
+  return await handleResponse<RfidCard>(res, "Failed to create RFID card.")
 }
 
 export async function updateRfidCardApi(
@@ -282,25 +241,12 @@ export async function updateRfidCardApi(
     body = JSON.stringify(payload)
   }
 
-  try {
-    const res = await fetch(`${API_BASE_URL}/rfid-cards/${id}`, {
-      method: "PUT",
-      headers: getAuthHeaders(token, isJson),
-      body,
-    })
-    return await handleResponse<RfidCard>(res, "Failed to update RFID card.")
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status
-    if (status === 404 || status === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/rfid-cards/${id}`, {
-        method: "PUT",
-        headers: getAuthHeaders(token, isJson),
-        body,
-      })
-      return await handleResponse<RfidCard>(fallbackRes, "Failed to update RFID card.")
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/rfid-cards/${id}`, {
+    method: "PUT",
+    headers: getAuthHeaders(token, isJson),
+    body,
+  })
+  return await handleResponse<RfidCard>(res, "Failed to update RFID card.")
 }
 
 export async function toggleRfidCardStatusApi(
@@ -308,46 +254,21 @@ export async function toggleRfidCardStatusApi(
   id: number,
   status: number
 ): Promise<{ message: string }> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/rfid-cards/${id}/status`, {
-      method: "PATCH",
-      headers: getAuthHeaders(token),
-      body: JSON.stringify({ status }),
-    })
-    return await handleResponse<{ message: string }>(res, "Failed to update RFID card status.")
-  } catch (err: unknown) {
-    const statusErr = (err as { status?: number })?.status
-    if (statusErr === 404 || statusErr === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/rfid-cards/${id}/status`, {
-        method: "PATCH",
-        headers: getAuthHeaders(token),
-        body: JSON.stringify({ status }),
-      })
-      return await handleResponse<{ message: string }>(fallbackRes, "Failed to update RFID card status.")
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/rfid-cards/${id}/status`, {
+    method: "PATCH",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify({ status }),
+  })
+  return await handleResponse<{ message: string }>(res, "Failed to update RFID card status.")
 }
 
 export async function deleteRfidCardApi(
   token: string,
   id: number
 ): Promise<{ message: string }> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/rfid-cards/${id}`, {
-      method: "DELETE",
-      headers: getAuthHeaders(token),
-    })
-    return await handleResponse<{ message: string }>(res, "Failed to delete RFID card.")
-  } catch (err: unknown) {
-    const statusErr = (err as { status?: number })?.status
-    if (statusErr === 404 || statusErr === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/rfid-cards/${id}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(token),
-      })
-      return await handleResponse<{ message: string }>(fallbackRes, "Failed to delete RFID card.")
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/rfid-cards/${id}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(token),
+  })
+  return await handleResponse<{ message: string }>(res, "Failed to delete RFID card.")
 }

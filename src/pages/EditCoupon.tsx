@@ -41,12 +41,12 @@ import { toast } from "sonner"
 
 const STATUS_OPTIONS = [
   { value: "1", label: "Active" },
-  { value: "0", label: "Inactive" },
+  { value: "2", label: "Inactive" },
 ]
 
 const STATUS_LABELS: Record<string, string> = {
   "1": "Active",
-  "0": "Inactive",
+  "2": "Inactive",
 }
 
 const SCOPE_OPTIONS: { value: CouponScope; label: string }[] = [
@@ -91,7 +91,7 @@ export default function EditCoupon() {
   const [endDate, setEndDate] = useState("")
   const [maxUses, setMaxUses] = useState("")
   const [maxUsesPerUser, setMaxUsesPerUser] = useState("1")
-  const [status, setStatus] = useState<1 | 0>(1)
+  const [status, setStatus] = useState<1 | 2>(1)
 
   const [sampleOrderAmount, setSampleOrderAmount] = useState<string>("5000")
 
@@ -127,7 +127,7 @@ export default function EditCoupon() {
         setEndDate(coupon.end_date ? coupon.end_date.slice(0, 10) : "")
         setMaxUses(coupon.max_uses ? String(coupon.max_uses) : "")
         setMaxUsesPerUser(coupon.max_uses_per_user ? String(coupon.max_uses_per_user) : "1")
-        setStatus(coupon.status === 1 ? 1 : 0)
+        setStatus(coupon.status === 1 ? 1 : 2)
         setIsLoading(false)
       })
       .catch((err: unknown) => {
@@ -587,7 +587,7 @@ export default function EditCoupon() {
                         value={String(status)}
                         onValueChange={(val) => {
                           if (val !== null && val !== undefined) {
-                            setStatus(Number(val) as 1 | 0)
+                            setStatus(Number(val) as 1 | 2)
                           }
                         }}
                         items={STATUS_OPTIONS}

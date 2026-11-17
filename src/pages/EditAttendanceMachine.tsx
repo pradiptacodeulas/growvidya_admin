@@ -49,12 +49,12 @@ const MACHINE_TYPES = [
 
 const STATUS_OPTIONS = [
   { value: "1", label: "Active" },
-  { value: "0", label: "Inactive" },
+  { value: "2", label: "Inactive" },
 ]
 
 const STATUS_LABELS: Record<string, string> = {
   "1": "Active",
-  "0": "Inactive",
+  "2": "Inactive",
 }
 
 const MACHINE_TYPE_LABELS: Record<string, string> = {
@@ -91,6 +91,8 @@ export default function EditAttendanceMachine() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [filePreview, setFilePreview] = useState<string | null>(null)
+  const [hadInitialImage, setHadInitialImage] = useState(false)
+  const [imageRemoved, setImageRemoved] = useState(false)
 
   // Form State
   const [machineName, setMachineName] = useState("")
@@ -128,6 +130,7 @@ export default function EditAttendanceMachine() {
         setSpecifications(machine.specifications || "")
         if (machine.machine_image) {
           setFilePreview(getFullImageUrl(machine.machine_image))
+          setHadInitialImage(true)
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to load attendance machine."
@@ -157,12 +160,14 @@ export default function EditAttendanceMachine() {
     }
 
     setSelectedFile(file)
+    setImageRemoved(false)
     setFilePreview(URL.createObjectURL(file))
   }
 
   const handleRemoveFile = () => {
     setSelectedFile(null)
     setFilePreview(null)
+    setImageRemoved(true)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -208,7 +213,11 @@ export default function EditAttendanceMachine() {
         amc_price: amcPrice ? Number(amcPrice) : 0,
         status,
         specifications: specifications.trim(),
-        ...(selectedFile ? { machine_image: selectedFile } : {}),
+        ...(selectedFile
+          ? { machine_image: selectedFile }
+          : imageRemoved && hadInitialImage
+            ? { machine_image: null }
+            : {}),
       }
 
       const result = await updateAttendanceMachineApi(token, Number(id), payload)
@@ -571,10 +580,10 @@ export default function EditAttendanceMachine() {
                     className="gap-1.5 cursor-pointer text-xs"
                   >
                     <Upload className="size-3.5" />
-                    {selectedFile ? "Change Image" : "Upload New Photo"}
+                    {filePreview ? "Change Image" : "Upload New Photo"}
                   </Button>
 
-                  {selectedFile && (
+                  {filePreview && (
                     <Button
                       type="button"
                       variant="ghost"

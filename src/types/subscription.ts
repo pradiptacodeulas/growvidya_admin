@@ -1,6 +1,21 @@
 import type { CatalogCounts, PaginationMeta } from "@/types/pagination"
 
-export type BillingCycle = "monthly" | "quarterly" | "half_yearly" | "annual" | "trial"
+export type BillingCycle = string
+
+export interface BillingCycleMeta {
+  id?: number
+  code: string
+  label: string
+  short_label: string
+  shortLabel?: string
+  suffix: string
+  duration_type: string
+  duration_value: number
+  months: number
+  rank: number
+  status: number
+  default_duration_text?: string
+}
 
 export interface SubscriptionItem {
   id?: number
@@ -9,7 +24,7 @@ export interface SubscriptionItem {
   item_code?: string | null
   item_type?: "module" | "feature" | string
   description?: string | null
-  status: 1 | 0
+  status: 1 | 2
   created_at?: string
   updated_at?: string
 }
@@ -31,17 +46,29 @@ export interface SubscriptionPackage {
   max_teachers?: number
   max_branches?: number
   included_storage_gb?: number
+  included_push_credits?: number
+  included_sms_credits?: number
   is_popular?: 0 | 1 | boolean
-  status: 1 | 0
+  status: 1 | 2
   subscriber_count?: number
   items_count?: number
   features?: Record<string, boolean>
   cycle_meta?: {
-    key: string
+    id?: number | null
+    key?: string
+    cycle?: string
+    code?: string
     label: string
+    short_label?: string
+    shortLabel?: string
+    suffix?: string
+    duration_type?: string
+    duration_value?: number
     months: number
-    days: number
-  }
+    days?: number
+    duration_text?: string
+    durationText?: string
+  } | null
   items: SubscriptionItem[]
   created_at: string
   updated_at?: string
@@ -59,8 +86,10 @@ export interface CreatePackagePayload {
   free_trial_days?: number
   max_students: number
   included_storage_gb?: number
+  included_push_credits?: number
+  included_sms_credits?: number
   is_popular?: 0 | 1
-  status?: 1 | 0
+  status?: 1 | 2
   items?: SubscriptionItem[]
 }
 
@@ -76,8 +105,10 @@ export interface UpdatePackagePayload {
   free_trial_days?: number
   max_students?: number
   included_storage_gb?: number
+  included_push_credits?: number
+  included_sms_credits?: number
   is_popular?: 0 | 1
-  status?: 1 | 0
+  status?: 1 | 2
   items?: SubscriptionItem[]
 }
 
@@ -86,7 +117,7 @@ export interface CreateItemPayload {
   item_code?: string | null
   item_type?: "module" | "feature" | string
   description?: string | null
-  status?: 1 | 0
+  status?: 1 | 2
 }
 
 export interface PackagesApiResponse {
@@ -106,6 +137,9 @@ export interface PackagesListResult {
   packages: SubscriptionPackage[]
   pagination: PaginationMeta
   counts: PackageCounts
+  meta?: {
+    billing_cycles?: BillingCycleMeta[]
+  }
 }
 
 /** Query params accepted by GET /packages */
@@ -152,7 +186,8 @@ export interface OrderInvoiceLineItem {
   description?: string
   quantity: number
   unit_price: number
-  total: number
+  total?: number
+  total_price?: number
 }
 
 export interface OrderInvoiceDetails {
@@ -171,7 +206,11 @@ export interface OrderInvoiceDetails {
   plan_name?: string | null
   billing_cycle?: string | null
   plan_amount: number
-  addons_amount: number
+  storage_amount?: number
+  machines_amount?: number
+  rfid_amount?: number
+  notifications_amount?: number
+  addons_amount?: number
   subtotal_amount: number
   coupon_code?: string | null
   discount_amount: number
@@ -182,6 +221,17 @@ export interface OrderInvoiceDetails {
   razorpay_order_id?: string | null
   razorpay_payment_id?: string | null
   utr_number?: string | null
+  bank_account_id?: number | null
+  company_bank_account?: {
+    id?: number | null
+    account_title?: string | null
+    beneficiary_name?: string | null
+    account_number?: string | null
+    bank_name?: string | null
+    branch_name?: string | null
+    ifsc_code?: string | null
+    upi_id?: string | null
+  } | null
   shipping_address?: string | null
   status: string
   failure_code?: string | null
@@ -212,6 +262,9 @@ export interface SubscriptionAuditLog {
   new_end_date?: string | null
   amount?: number | string | null
   notes?: string | null
+  reason?: string | null
+  previous_state_json?: string | Record<string, unknown> | null
+  new_state_json?: string | Record<string, unknown> | null
   created_at: string
 }
 
@@ -230,6 +283,8 @@ export interface SchoolSubscription {
   included_storage_gb?: number
   plan_price: number | string
   billing_cycle: BillingCycle
+  free_trial_days?: number
+  cycle_meta?: SubscriptionPackage["cycle_meta"] | BillingCycleMeta | null
   max_students?: number
   max_teachers?: number
   action_type?: string
@@ -244,6 +299,13 @@ export interface SchoolSubscription {
   payment_transaction_id?: string | null
   payment_order_id?: number | null
   order_no?: string | null
+  utr_number?: string | null
+  bank_account_id?: number | null
+  company_bank_name?: string | null
+  company_bank_title?: string | null
+  company_bank_beneficiary?: string | null
+  company_account_number?: string | null
+  company_ifsc_code?: string | null
   invoice_no?: string | null
   payment_status: SchoolPaymentStatus
   status: SchoolSubscriptionStatus
@@ -281,6 +343,15 @@ export interface SubscriptionsListResult {
   subscriptions: SchoolSubscription[]
   pagination: SubscriptionsPagination
   counts: SubscriptionCounts
+  meta?: {
+    billing_cycles?: BillingCycleMeta[]
+  }
+}
+
+export interface AssignSubscriptionOptionsResult {
+  schools: SchoolLookupItem[]
+  packages: SubscriptionPackage[]
+  billing_cycles: BillingCycleMeta[]
 }
 
 export interface ApproveSubscriptionPayload {
@@ -310,4 +381,11 @@ export interface SchoolLookupItem {
   plan_name?: string | null
   subscription_status?: string | null
   student_count?: number
+  active_students?: number
+  teacher_count?: number
+  active_teachers?: number
+  staff_count?: number
+  active_staff?: number
+  branch_count?: number
+  active_branches?: number
 }

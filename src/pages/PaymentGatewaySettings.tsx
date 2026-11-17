@@ -89,8 +89,7 @@ export default function PaymentGatewaySettings() {
   const canUpdateSettings =
     can("payment_gateway.update") ||
     can("payment_gateway", ["can_edit", "can_manage", "can_add"])
-  const canDeleteSettings =
-    can("payment_gateway", "can_delete") || canUpdateSettings
+  const canDeleteSettings = can("payment_gateway", "can_delete")
 
   // State
   const [credentials, setCredentials] = useState<RazorpayCredentials | null>(null)
@@ -286,7 +285,7 @@ export default function PaymentGatewaySettings() {
       toast.error("Access denied. You do not have permission to update gateway status.")
       return
     }
-    const nextStatus = credentials.status === 1 ? 0 : 1
+    const nextStatus = credentials.status === 1 ? 2 : 1
     try {
       const updated = await updateRazorpayCredentialsApi(token, credentials.id, {
         key_id: credentials.key_id,
@@ -958,8 +957,8 @@ export default function PaymentGatewaySettings() {
                 <Button
                   type="button"
                   size="sm"
-                  variant={status === 0 ? "default" : "outline"}
-                  onClick={() => setStatus(0)}
+                  variant={status === 2 ? "default" : "outline"}
+                  onClick={() => setStatus(2)}
                   className="h-8 text-xs cursor-pointer"
                 >
                   Inactive (Disabled)

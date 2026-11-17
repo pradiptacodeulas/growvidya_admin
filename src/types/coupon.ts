@@ -31,8 +31,17 @@ export interface PaginationInfo {
   hasPrevPage: boolean
 }
 
+export interface CouponSummary {
+  total_coupons: number
+  active_coupons: number
+  inactive_coupons: number
+  total_redemptions: number
+  total_discount_given: number
+}
+
 export interface CouponsData {
   coupons: Coupon[]
+  summary?: CouponSummary
   pagination: PaginationInfo
 }
 

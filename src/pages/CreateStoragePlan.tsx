@@ -36,12 +36,12 @@ import { toast } from "sonner"
 
 const STATUS_OPTIONS = [
   { value: "1", label: "Active" },
-  { value: "0", label: "Inactive" },
+  { value: "2", label: "Inactive" },
 ]
 
 const STATUS_LABELS: Record<string, string> = {
   "1": "Active",
-  "0": "Inactive",
+  "2": "Inactive",
 }
 
 const FORM_DRAFT_KEY = "create_storage_plan"

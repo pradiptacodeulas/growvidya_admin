@@ -38,12 +38,12 @@ import { toast } from "sonner"
 
 const STATUS_OPTIONS = [
   { value: "1", label: "Active" },
-  { value: "0", label: "Inactive" },
+  { value: "2", label: "Inactive" },
 ]
 
 const STATUS_LABELS: Record<string, string> = {
   "1": "Active",
-  "0": "Inactive",
+  "2": "Inactive",
 }
 
 const DISCOUNT_TYPE_OPTIONS = [
@@ -95,7 +95,7 @@ export default function CreateCoupon() {
   const [endDate, setEndDate] = useDraftState(FORM_DRAFT_KEY, "endDate", "")
   const [maxUses, setMaxUses] = useDraftState(FORM_DRAFT_KEY, "maxUses", "")
   const [maxUsesPerUser, setMaxUsesPerUser] = useDraftState(FORM_DRAFT_KEY, "maxUsesPerUser", "1")
-  const [status, setStatus] = useDraftState<1 | 0>(FORM_DRAFT_KEY, "status", 1)
+  const [status, setStatus] = useDraftState<1 | 2>(FORM_DRAFT_KEY, "status", 1)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [sampleOrderAmount, setSampleOrderAmount] = useDraftState<string>(FORM_DRAFT_KEY, "sampleOrderAmount", "5000")
@@ -521,7 +521,7 @@ export default function CreateCoupon() {
                       value={String(status)}
                       onValueChange={(val) => {
                         if (val !== null && val !== undefined) {
-                          setStatus(Number(val) as 1 | 0)
+                          setStatus(Number(val) as 1 | 2)
                         }
                       }}
                       items={STATUS_OPTIONS}

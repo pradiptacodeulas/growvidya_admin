@@ -5,6 +5,10 @@ import {
   fetchRfidCardBuyersApi,
   updateRfidCardBuyerOrderApi,
 } from "@/services/rfidCardService"
+import {
+  approvePaymentOrderApi,
+  rejectPaymentOrderApi,
+} from "@/services/subscriptionService"
 import type {
   RfidCardBuyerCounts,
   RfidCardBuyerOrder,
@@ -108,7 +112,9 @@ function getBasePlanStatusBadge(status: string | null) {
 export default function RfidCardBuyers() {
   const token = useAppSelector((state) => state.auth.token)
   const { can } = usePermission()
-  const canManage = can("rfid_cards", ["can_manage", "can_edit"])
+  const canManage =
+    can("rfid_buyers", ["can_manage", "can_edit"]) ||
+    can("rfid_cards", ["can_manage", "can_edit"])
 
   const [buyers, setBuyers] = useState<RfidCardBuyerOrder[]>([])
   const [counts, setCounts] = useState<RfidCardBuyerCounts>(INITIAL_COUNTS)
@@ -130,6 +136,7 @@ export default function RfidCardBuyers() {
   const [editShippingAddress, setEditShippingAddress] = useState("")
   const [editRemarks, setEditRemarks] = useState("")
   const [isSaving, setIsSaving] = useState(false)
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -185,6 +192,38 @@ export default function RfidCardBuyers() {
       toast.error(err instanceof Error ? err.message : "Failed to update RFID order.")
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleVerifyPaymentOrder = async (approve: boolean) => {
+    if (!token || !editingOrder?.payment_order_id) return
+    setIsVerifyingPayment(true)
+    try {
+      if (approve) {
+        await approvePaymentOrderApi(
+          token,
+          editingOrder.payment_order_id,
+          editRemarks.trim() || "Offline UTR payment order verified via RFID Card Buyers"
+        )
+        toast.success(
+          `Payment Order ${editingOrder.payment_order_no || `#${editingOrder.payment_order_id}`} verified! RFID order is now Approved and ready for independent dispatch.`
+        )
+      } else {
+        await rejectPaymentOrderApi(
+          token,
+          editingOrder.payment_order_id,
+          editRemarks.trim() || "Offline UTR payment order rejected via RFID Card Buyers"
+        )
+        toast.info(
+          `Payment Order ${editingOrder.payment_order_no || `#${editingOrder.payment_order_id}`} rejected.`
+        )
+      }
+      setEditingOrder(null)
+      loadBuyers()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to process payment order verification.")
+    } finally {
+      setIsVerifyingPayment(false)
     }
   }
 
@@ -655,6 +694,28 @@ export default function RfidCardBuyers() {
                     <span className="text-muted-foreground">Payment Ref:</span>
                     <p className="font-mono truncate">{selectedOrder.payment_transaction_id || "—"}</p>
                   </div>
+                  {selectedOrder.payment_order_no && (
+                    <div>
+                      <span className="text-muted-foreground">Payment Order:</span>
+                      <p className="font-mono font-semibold text-foreground">
+                        {selectedOrder.payment_order_no}{" "}
+                        <span className="uppercase text-[10px] text-muted-foreground">
+                          ({selectedOrder.payment_order_status || "—"})
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                  {selectedOrder.company_bank_name && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Received in Bank A/C:</span>
+                      <p className="font-medium text-foreground">
+                        {selectedOrder.company_bank_name}
+                        {selectedOrder.company_account_number
+                          ? ` • A/C ${selectedOrder.company_account_number}`
+                          : ""}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {selectedOrder.remarks && (
@@ -699,6 +760,63 @@ export default function RfidCardBuyers() {
           </DialogHeader>
 
           <div className="space-y-3.5 py-2">
+            {editingOrder?.payment_order_id &&
+              editingOrder.payment_order_status === "pending_verification" && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-2 text-xs">
+                  <div className="font-semibold text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                    <span>Offline UTR Payment Verification Required</span>
+                    <span className="font-mono">{editingOrder.payment_order_no}</span>
+                  </div>
+                  <div className="text-muted-foreground space-y-0.5">
+                    <p>
+                      UTR Ref:{" "}
+                      <strong className="font-mono text-foreground">
+                        {editingOrder.utr_number || editingOrder.payment_transaction_id || "—"}
+                      </strong>
+                      {editingOrder.payment_order_total
+                        ? ` • Order Total: ${formatPrice(editingOrder.payment_order_total)}`
+                        : ""}
+                    </p>
+                    {editingOrder.company_bank_name && (
+                      <p>
+                        Company Bank:{" "}
+                        <strong className="text-foreground">
+                          {editingOrder.company_bank_name}
+                          {editingOrder.company_account_number
+                            ? ` (A/C ${editingOrder.company_account_number})`
+                            : ""}
+                        </strong>
+                      </p>
+                    )}
+                    <p className="text-[11px] pt-0.5">
+                      Hardware cannot be dispatched or delivered until this Payment Order UTR is verified.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isVerifyingPayment || isSaving}
+                      onClick={() => handleVerifyPaymentOrder(true)}
+                      className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                    >
+                      {isVerifyingPayment ? <Loader2 className="size-3.5 animate-spin mr-1" /> : null}
+                      Verify UTR Payment Order
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={isVerifyingPayment || isSaving}
+                      onClick={() => handleVerifyPaymentOrder(false)}
+                      className="h-7 text-xs text-rose-600 border-rose-300 hover:bg-rose-500/10 cursor-pointer"
+                    >
+                      Reject UTR
+                    </Button>
+                  </div>
+                </div>
+              )}
+
             <div className="space-y-1.5">
               <Label>Order Status</Label>
               <select
@@ -706,11 +824,19 @@ export default function RfidCardBuyers() {
                 onChange={(e) => setEditOrderStatus(e.target.value as RfidOrderStatus)}
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
               >
-                {ORDER_STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
+                {ORDER_STATUS_OPTIONS.map((opt) => {
+                  const isUnpaidOrder =
+                    Boolean(editingOrder?.payment_order_id) &&
+                    editingOrder?.payment_order_status !== "paid"
+                  const disabledOpt =
+                    isUnpaidOrder && ["approved", "dispatched", "delivered"].includes(opt.value)
+                  return (
+                    <option key={opt.value} value={opt.value} disabled={disabledOpt}>
+                      {opt.label}
+                      {disabledOpt ? " (Verify UTR first)" : ""}
+                    </option>
+                  )
+                })}
               </select>
             </div>
 

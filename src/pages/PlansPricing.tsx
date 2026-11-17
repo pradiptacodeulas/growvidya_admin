@@ -22,7 +22,7 @@ import {
 } from "@/services/subscriptionService"
 import type {
   SubscriptionPackage,
-  BillingCycle,
+  BillingCycleMeta,
   PackageCounts,
 } from "@/types/subscription"
 import {
@@ -67,18 +67,9 @@ const EMPTY_PACKAGE_COUNTS: PackageCounts = {
 
 const toStatusParam = (filter: string): number | undefined => {
   if (filter === "active") return 1
-  if (filter === "inactive") return 0
+  if (filter === "inactive") return 2
   return undefined
 }
-
-const CYCLE_FILTER_TABS: { value: string; label: string }[] = [
-  { value: "all", label: "All Cycles" },
-  { value: "annual", label: "Annually" },
-  { value: "half_yearly", label: "Half-Yearly" },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "trial", label: "Trial" },
-]
 
 export default function PlansPricing() {
   const navigate = useNavigate()
@@ -90,6 +81,7 @@ export default function PlansPricing() {
   const canManagePkg = can("packages", "can_manage")
 
   const [packages, setPackages] = useState<SubscriptionPackage[]>([])
+  const [billingCycles, setBillingCycles] = useState<BillingCycleMeta[]>([])
   const [pagination, setPagination] = useState<PaginationMeta>(EMPTY_PAGINATION)
   const [counts, setCounts] = useState<PackageCounts>(EMPTY_PACKAGE_COUNTS)
   const [isLoading, setIsLoading] = useState(true)
@@ -144,6 +136,9 @@ export default function PlansPricing() {
         }
 
         setPackages(data?.packages ?? [])
+        if (Array.isArray(data?.meta?.billing_cycles)) {
+          setBillingCycles(data.meta.billing_cycles)
+        }
         setPagination(meta)
         setCounts({ ...EMPTY_PACKAGE_COUNTS, ...(data?.counts ?? {}) })
       } catch (err: unknown) {
@@ -192,7 +187,7 @@ export default function PlansPricing() {
 
   const handleToggleStatus = async (pkg: SubscriptionPackage) => {
     if (!token || togglingPackageId !== null) return
-    const newStatus = pkg.status === 1 ? 0 : 1
+    const newStatus = pkg.status === 1 ? 2 : 1
     setTogglingPackageId(pkg.id)
 
     try {
@@ -232,25 +227,26 @@ export default function PlansPricing() {
     }
   }
 
-  const formatPrice = (price: number | string, cycle: BillingCycle) => {
-    const numPrice = Number(price) || 0
+  const cycleFilterTabs = [
+    { value: "all", label: "All Cycles" },
+    ...billingCycles.map((c) => ({
+      value: c.code,
+      label: c.short_label || c.label,
+    })),
+  ]
+
+  const formatPrice = (pkg: SubscriptionPackage) => {
+    const numPrice = Number(pkg.price) || 0
+    const cycle = pkg.billing_cycle
     if (cycle === "trial" || numPrice === 0) {
-      return "Free Trial"
+      return pkg.cycle_meta?.label || "Free Trial"
     }
 
     const formatted = `₹${numPrice.toLocaleString("en-IN")}`
-    switch (cycle) {
-      case "annual":
-        return `${formatted} / year`
-      case "half_yearly":
-        return `${formatted} / 6 mos`
-      case "quarterly":
-        return `${formatted} / quarter`
-      case "monthly":
-        return `${formatted} / month`
-      default:
-        return formatted
-    }
+    const matchedCycle = billingCycles.find((c) => c.code === cycle)
+    const rawSuffix = pkg.cycle_meta?.suffix || matchedCycle?.suffix || ""
+    const cleanSuffix = rawSuffix.replace(/^\//, "").trim()
+    return cleanSuffix ? `${formatted} / ${cleanSuffix}` : formatted
   }
 
   return (
@@ -421,9 +417,9 @@ export default function PlansPricing() {
             ))}
           </div>
 
-          {/* All 5 Billing Cycles Filter */}
+          {/* Dynamic Billing Cycles Filter from billing_cycle_master */}
           <div className="flex flex-wrap items-center rounded-lg border border-border/60 p-0.5 bg-muted/30 text-xs">
-            {CYCLE_FILTER_TABS.map((tab) => (
+            {cycleFilterTabs.map((tab) => (
               <button
                 key={tab.value}
                 type="button"
@@ -599,7 +595,7 @@ export default function PlansPricing() {
                             </div>
                           )}
                           <span className="font-bold text-xs text-foreground block">
-                            {formatPrice(pkg.price, pkg.billing_cycle)}
+                            {formatPrice(pkg)}
                           </span>
                         </div>
                       </TableCell>
@@ -620,6 +616,13 @@ export default function PlansPricing() {
                                 : "No Base Storage"}
                             </span>
                           </div>
+                          {((pkg.included_push_credits ?? 0) > 0 || (pkg.included_sms_credits ?? 0) > 0) && (
+                            <div className="text-[11px] text-muted-foreground">
+                              {(pkg.included_push_credits ?? 0) > 0 && `${pkg.included_push_credits?.toLocaleString("en-IN")} Push`}
+                              {(pkg.included_push_credits ?? 0) > 0 && (pkg.included_sms_credits ?? 0) > 0 && " • "}
+                              {(pkg.included_sms_credits ?? 0) > 0 && `${pkg.included_sms_credits?.toLocaleString("en-IN")} SMS`}
+                            </div>
+                          )}
                         </div>
                       </TableCell>
 
@@ -830,7 +833,7 @@ export default function PlansPricing() {
                           </div>
                         )}
                         <div className="text-2xl font-black tracking-tight text-foreground">
-                          {formatPrice(pkg.price, pkg.billing_cycle)}
+                          {formatPrice(pkg)}
                         </div>
                         {pkg.description && (
                           <p className="text-xs text-muted-foreground line-clamp-2 mt-1">

@@ -43,6 +43,8 @@ import CreateRfidCard from "@/pages/CreateRfidCard"
 import EditRfidCard from "@/pages/EditRfidCard"
 import StoragePlans from "@/pages/StoragePlans"
 import StoragePlanBuyers from "@/pages/StoragePlanBuyers"
+import NotificationPlans from "@/pages/NotificationPlans"
+import NotificationBuyers from "@/pages/NotificationBuyers"
 import CreateStoragePlan from "@/pages/CreateStoragePlan"
 import EditStoragePlan from "@/pages/EditStoragePlan"
 
@@ -253,6 +255,10 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
         return "Manage RFID Cards"
       case "/storage-plans":
         return "Manage Storage Plans"
+      case "/notifications":
+        return "Notification Credit Pricing"
+      case "/notifications/buyers":
+        return "Notification Credit Buyers"
       case "/coupons":
         return "Coupons"
       case "/bank-accounts":
@@ -372,7 +378,7 @@ function AppRoutes() {
                 <Route
                   path="/attendance-machines/buyers"
                   element={
-                    <RoutePermissionGuard module="machines_buyers" action="can_view">
+                    <RoutePermissionGuard module={["machines_buyers", "attendance_machines"]} action="can_view">
                       <AttendanceMachineBuyers />
                     </RoutePermissionGuard>
                   }
@@ -420,7 +426,7 @@ function AppRoutes() {
                 <Route
                   path="/rfid-cards/buyers"
                   element={
-                    <RoutePermissionGuard module="rfid_buyers" action="can_view">
+                    <RoutePermissionGuard module={["rfid_buyers", "rfid_cards"]} action="can_view">
                       <RfidCardBuyers />
                     </RoutePermissionGuard>
                   }
@@ -460,7 +466,7 @@ function AppRoutes() {
                 <Route
                   path="/storage-plans/buyers"
                   element={
-                    <RoutePermissionGuard module="storage_buyers" action="can_view">
+                    <RoutePermissionGuard module={["storage_buyers", "storage_plans"]} action="can_view">
                       <StoragePlanBuyers />
                     </RoutePermissionGuard>
                   }
@@ -712,6 +718,22 @@ function AppRoutes() {
                 <Route path="/profile/edit" element={<EditProfile />} />
 
                 <Route path="/settings" element={<SettingsRedirect />} />
+                <Route
+                  path="/notifications"
+                  element={
+                    <RoutePermissionGuard module={["packages", "email_delivery", "email_settings"]} action="can_view">
+                      <NotificationPlans />
+                    </RoutePermissionGuard>
+                  }
+                />
+                <Route
+                  path="/notifications/buyers"
+                  element={
+                    <RoutePermissionGuard module={["subscriptions", "schools", "packages", "email_delivery"]} action="can_view">
+                      <NotificationBuyers />
+                    </RoutePermissionGuard>
+                  }
+                />
                 <Route
                   path="/settings/payment-gateway"
                   element={

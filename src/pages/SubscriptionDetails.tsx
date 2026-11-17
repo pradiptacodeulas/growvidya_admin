@@ -7,6 +7,10 @@ import {
   approveSubscriptionApi,
   rejectSubscriptionApi,
   updateSubscriptionStatusApi,
+  getTodayDateIST,
+  computeDynamicCycleEndDate,
+  formatDynamicCycleLabel,
+  getDaysRemainingIST,
 } from "@/services/subscriptionService"
 import type { SchoolSubscription } from "@/types/subscription"
 import { Button } from "@/components/ui/button"
@@ -95,47 +99,6 @@ function formatDateTime(dateStr?: string | null) {
   }
 }
 
-function computeCycleEndDate(startStr: string, cycle: string): string {
-  const d = new Date(`${startStr}T00:00:00`)
-  if (isNaN(d.getTime())) return startStr
-  switch (cycle) {
-    case "monthly":
-      d.setMonth(d.getMonth() + 1)
-      break
-    case "quarterly":
-      d.setMonth(d.getMonth() + 3)
-      break
-    case "half_yearly":
-      d.setMonth(d.getMonth() + 6)
-      break
-    case "trial":
-      d.setDate(d.getDate() + 14)
-      break
-    case "annual":
-    default:
-      d.setFullYear(d.getFullYear() + 1)
-      break
-  }
-  return d.toISOString().split("T")[0]
-}
-
-function formatCycleLabel(cycle?: string | null) {
-  switch (cycle) {
-    case "monthly":
-      return "Monthly"
-    case "quarterly":
-      return "Quarterly"
-    case "half_yearly":
-      return "Half-Yearly"
-    case "annual":
-      return "Annual"
-    case "trial":
-      return "Free Trial"
-    default:
-      return cycle || "—"
-  }
-}
-
 export default function SubscriptionDetails() {
   const { id } = useParams<{ id: string }>()
   const token = useAppSelector((state) => state.auth.token)
@@ -212,12 +175,18 @@ export default function SubscriptionDetails() {
   // Open Approval Dialog
   const handleOpenApprove = () => {
     if (!subscription) return
-    const todayStr = new Date().toISOString().split("T")[0]
+    const todayStr = getTodayDateIST()
     setApprovalStartDate(todayStr)
-    setApprovalEndDate(computeCycleEndDate(todayStr, subscription.billing_cycle))
+    setApprovalEndDate(
+      computeDynamicCycleEndDate(
+        todayStr,
+        subscription.cycle_meta,
+        subscription.free_trial_days
+      )
+    )
     setUseCustomApprovalDates(false)
     setApprovalNotes(
-      `Offline Bank Transfer verified and approved by Super Admin on ${new Date().toLocaleDateString()}`
+      `Offline Bank Transfer verified and approved by Super Admin on ${todayStr}`
     )
     setIsApproveOpen(true)
   }
@@ -394,20 +363,6 @@ export default function SubscriptionDetails() {
     }
   }
 
-  // Days remaining calculation
-  const getDaysRemaining = (endDateStr?: string | null) => {
-    if (!endDateStr) return null
-    try {
-      const end = new Date(endDateStr.replace(" ", "T"))
-      const now = new Date()
-      const diffTime = end.getTime() - now.getTime()
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-      return diffDays
-    } catch {
-      return null
-    }
-  }
-
   if (isLoading) {
     return (
       <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
@@ -452,7 +407,7 @@ export default function SubscriptionDetails() {
     )
   }
 
-  const daysRemaining = getDaysRemaining(subscription.end_date)
+  const daysRemaining = getDaysRemainingIST(subscription.end_date)
   const orderDetails = subscription.order_details || null
   const auditLogs = subscription.audit_logs || []
   const invoiceNumber =
@@ -506,7 +461,7 @@ export default function SubscriptionDetails() {
             {renderStatusBadge(subscription.status)}
             {renderPaymentBadge(subscription.payment_status)}
             <Badge variant="secondary" className="text-xs font-normal">
-              {formatCycleLabel(subscription.billing_cycle)} Cycle
+              {formatDynamicCycleLabel(subscription.billing_cycle, subscription.cycle_meta)} Cycle
             </Badge>
             {subscription.action_type && (
               <Badge variant="outline" className="uppercase font-mono text-[11px]">
@@ -563,17 +518,18 @@ export default function SubscriptionDetails() {
             </>
           )}
 
-          {subscription.status === "active" && canManageSubscription && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleOpenStatusModal("suspended")}
-              className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/30 font-medium h-9 px-3.5 gap-1.5 cursor-pointer"
-            >
-              <PowerOff className="size-4" />
-              Make Inactive
-            </Button>
-          )}
+          {(subscription.status === "active" || subscription.status === "trial") &&
+            canManageSubscription && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleOpenStatusModal("suspended")}
+                className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/30 font-medium h-9 px-3.5 gap-1.5 cursor-pointer"
+              >
+                <PowerOff className="size-4" />
+                Make Inactive
+              </Button>
+            )}
 
           {subscription.status === "suspended" && canManageSubscription && (
             <Button
@@ -588,23 +544,38 @@ export default function SubscriptionDetails() {
         </div>
       </div>
 
-      {/* Rejection / Warning Banner if Rejected */}
-      {(subscription.status === "rejected" || subscription.status === "suspended") &&
-        subscription.rejection_reason && (
-          <Card className="border-rose-300 bg-rose-50/70 dark:bg-rose-950/20 dark:border-rose-900">
-            <CardContent className="p-4 flex items-start gap-3">
-              <XCircle className="size-5 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
-              <div>
-                <h4 className="text-sm font-semibold text-rose-900 dark:text-rose-200">
-                  Subscription Request Rejected
-                </h4>
-                <p className="text-xs text-rose-800 dark:text-rose-300 mt-1">
-                  Reason: {subscription.rejection_reason}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+      {/* Rejection / Inactive Banner */}
+      {subscription.status === "rejected" && subscription.rejection_reason && (
+        <Card className="border-rose-300 bg-rose-50/70 dark:bg-rose-950/20 dark:border-rose-900">
+          <CardContent className="p-4 flex items-start gap-3">
+            <XCircle className="size-5 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
+            <div>
+              <h4 className="text-sm font-semibold text-rose-900 dark:text-rose-200">
+                Subscription Request Rejected
+              </h4>
+              <p className="text-xs text-rose-800 dark:text-rose-300 mt-1">
+                Reason: {subscription.rejection_reason}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {subscription.status === "suspended" && (
+        <Card className="border-rose-300 bg-rose-50/70 dark:bg-rose-950/20 dark:border-rose-900">
+          <CardContent className="p-4 flex items-start gap-3">
+            <PowerOff className="size-5 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
+            <div>
+              <h4 className="text-sm font-semibold text-rose-900 dark:text-rose-200">
+                Subscription Marked Inactive
+              </h4>
+              <p className="text-xs text-rose-800 dark:text-rose-300 mt-1">
+                Institutional portal access is paused until this subscription is reactivated or renewed.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Main Details Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -732,7 +703,7 @@ export default function SubscriptionDetails() {
                   Subscription Plan & Quotas
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  {subscription.tier_rank ? (
+                  {subscription.tier_rank !== undefined && subscription.tier_rank !== null ? (
                     <Badge variant="secondary" className="font-mono text-xs">
                       Tier Rank #{subscription.tier_rank}
                     </Badge>
@@ -762,7 +733,7 @@ export default function SubscriptionDetails() {
                 <div>
                   <span className="text-xs text-muted-foreground block mb-0.5">Billing Cycle</span>
                   <div className="font-medium text-foreground">
-                    {formatCycleLabel(subscription.billing_cycle)}
+                    {formatDynamicCycleLabel(subscription.billing_cycle, subscription.cycle_meta)}
                   </div>
                 </div>
 
@@ -857,7 +828,7 @@ export default function SubscriptionDetails() {
                               {formatCurrency(li.unit_price)}
                             </td>
                             <td className="px-3 py-2.5 text-right font-mono font-semibold text-foreground">
-                              {formatCurrency(li.total)}
+                              {formatCurrency(li.total ?? li.total_price)}
                             </td>
                           </tr>
                         ))}
@@ -876,7 +847,13 @@ export default function SubscriptionDetails() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Add-ons Total (Storage / Hardware / Credits)</span>
                     <span className="font-mono font-medium">
-                      {formatCurrency(orderDetails.addons_amount)}
+                      {formatCurrency(
+                        orderDetails.addons_amount ??
+                          (Number(orderDetails.storage_amount || 0) +
+                            Number(orderDetails.machines_amount || 0) +
+                            Number(orderDetails.rfid_amount || 0) +
+                            Number(orderDetails.notifications_amount || 0))
+                      )}
                     </span>
                   </div>
                   {Number(orderDetails.discount_amount || 0) > 0 && (
@@ -999,6 +976,32 @@ export default function SubscriptionDetails() {
                     <span className="text-muted-foreground italic">None provided</span>
                   )}
                 </div>
+
+                {(subscription.company_bank_name || orderDetails?.company_bank_account?.bank_name) && (
+                  <div className="sm:col-span-2">
+                    <span className="text-xs text-muted-foreground block mb-0.5">
+                      Receiving Company Bank Account
+                    </span>
+                    <div className="font-medium text-foreground">
+                      {subscription.company_bank_name || orderDetails?.company_bank_account?.bank_name}
+                      {(subscription.company_account_number ||
+                        orderDetails?.company_bank_account?.account_number) && (
+                        <span className="font-mono text-xs text-muted-foreground ml-1.5">
+                          (A/C:{" "}
+                          {subscription.company_account_number ||
+                            orderDetails?.company_bank_account?.account_number}
+                          {(subscription.company_ifsc_code ||
+                            orderDetails?.company_bank_account?.ifsc_code) &&
+                            ` • IFSC: ${
+                              subscription.company_ifsc_code ||
+                              orderDetails?.company_bank_account?.ifsc_code
+                            }`}
+                          )
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1014,7 +1017,34 @@ export default function SubscriptionDetails() {
               </CardHeader>
               <CardContent className="p-5">
                 <div className="space-y-3">
-                  {auditLogs.map((log) => (
+                  {auditLogs.map((log) => {
+                    const parseAuditState = (raw: unknown): Record<string, unknown> | null => {
+                      if (!raw) return null
+                      if (typeof raw === "object") return raw as Record<string, unknown>
+                      if (typeof raw === "string") {
+                        try {
+                          return JSON.parse(raw) as Record<string, unknown>
+                        } catch {
+                          return null
+                        }
+                      }
+                      return null
+                    }
+                    const prevObj = parseAuditState(log.previous_state_json)
+                    const nextObj = parseAuditState(log.new_state_json)
+                    const oldStatus =
+                      log.old_status || (typeof prevObj?.status === "string" ? prevObj.status : null)
+                    const newStatus =
+                      log.new_status || (typeof nextObj?.status === "string" ? nextObj.status : null)
+                    const oldEndDate =
+                      log.old_end_date ||
+                      (typeof prevObj?.end_date === "string" ? prevObj.end_date : null)
+                    const newEndDate =
+                      log.new_end_date ||
+                      (typeof nextObj?.end_date === "string" ? nextObj.end_date : null)
+                    const auditNotes = log.notes || log.reason || null
+
+                    return (
                     <div
                       key={log.id}
                       className="p-3 rounded-lg border bg-muted/20 text-xs space-y-1"
@@ -1033,34 +1063,35 @@ export default function SubscriptionDetails() {
                         </span>
                       </div>
 
-                      {(log.old_status || log.new_status || log.new_end_date) && (
+                      {(oldStatus || newStatus || newEndDate) && (
                         <div className="text-muted-foreground flex flex-wrap items-center gap-3">
-                          {(log.old_status || log.new_status) && (
+                          {(oldStatus || newStatus) && (
                             <span>
                               Status:{" "}
-                              <code className="font-mono">{log.old_status || "none"}</code> &rarr;{" "}
+                              <code className="font-mono">{oldStatus || "none"}</code> &rarr;{" "}
                               <code className="font-mono text-foreground">
-                                {log.new_status || "—"}
+                                {newStatus || "—"}
                               </code>
                             </span>
                           )}
-                          {log.new_end_date && (
+                          {newEndDate && (
                             <span>
                               Validity End:{" "}
-                              {log.old_end_date ? `${formatDate(log.old_end_date)} → ` : ""}
+                              {oldEndDate ? `${formatDate(oldEndDate)} → ` : ""}
                               <strong className="text-foreground">
-                                {formatDate(log.new_end_date)}
+                                {formatDate(newEndDate)}
                               </strong>
                             </span>
                           )}
                         </div>
                       )}
 
-                      {log.notes && (
-                        <p className="text-foreground/90 pt-0.5 whitespace-pre-wrap">{log.notes}</p>
+                      {auditNotes && (
+                        <p className="text-foreground/90 pt-0.5 whitespace-pre-wrap">{auditNotes}</p>
                       )}
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -1165,6 +1196,11 @@ export default function SubscriptionDetails() {
                         ? "Offline subscription request was rejected."
                         : "Subscription is currently marked inactive."}
                     </span>
+                  </div>
+                ) : subscription.status === "expired" ? (
+                  <div className="p-3 rounded-lg bg-gray-500/10 border border-gray-500/20 text-xs text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <AlertCircle className="size-4 shrink-0" />
+                    <span>Subscription validity period has expired.</span>
                   </div>
                 ) : (
                   <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
@@ -1319,14 +1355,16 @@ export default function SubscriptionDetails() {
                           {formatCurrency(li.unit_price)}
                         </td>
                         <td className="px-3 py-2 text-right font-mono font-semibold">
-                          {formatCurrency(li.total)}
+                          {formatCurrency(li.total ?? li.total_price)}
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
                       <td className="px-3 py-2 font-medium">
-                        {subscription.plan_name} ({formatCycleLabel(subscription.billing_cycle)})
+                        {subscription.plan_name} (
+                        {formatDynamicCycleLabel(subscription.billing_cycle, subscription.cycle_meta)}
+                        )
                       </td>
                       <td className="px-3 py-2 text-right font-mono">1</td>
                       <td className="px-3 py-2 text-right font-mono">
@@ -1392,7 +1430,7 @@ export default function SubscriptionDetails() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Billing Cycle:</span>
                 <span className="font-semibold text-foreground">
-                  {formatCycleLabel(subscription.billing_cycle)}
+                  {formatDynamicCycleLabel(subscription.billing_cycle, subscription.cycle_meta)}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -1407,6 +1445,20 @@ export default function SubscriptionDetails() {
                   {subscription.payment_transaction_id || "None"}
                 </span>
               </div>
+              {(subscription.company_bank_name || orderDetails?.company_bank_account?.bank_name) && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Company Bank A/C:</span>
+                  <span className="font-medium text-foreground text-right">
+                    {subscription.company_bank_name || orderDetails?.company_bank_account?.bank_name}
+                    {(subscription.company_account_number ||
+                      orderDetails?.company_bank_account?.account_number) &&
+                      ` (${
+                        subscription.company_account_number ||
+                        orderDetails?.company_bank_account?.account_number
+                      })`}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -1434,7 +1486,11 @@ export default function SubscriptionDetails() {
                         setApprovalStartDate(e.target.value)
                         if (e.target.value) {
                           setApprovalEndDate(
-                            computeCycleEndDate(e.target.value, subscription.billing_cycle)
+                            computeDynamicCycleEndDate(
+                              e.target.value,
+                              subscription.cycle_meta,
+                              subscription.free_trial_days
+                            )
                           )
                         }
                       }}
@@ -1595,7 +1651,9 @@ export default function SubscriptionDetails() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Plan:</span>
                   <span className="font-medium text-foreground">
-                    {subscription.plan_name} ({formatCycleLabel(subscription.billing_cycle)})
+                    {subscription.plan_name} (
+                    {formatDynamicCycleLabel(subscription.billing_cycle, subscription.cycle_meta)}
+                    )
                   </span>
                 </div>
                 <div className="flex justify-between">

@@ -5,6 +5,10 @@ import {
   fetchAttendanceMachineBuyersApi,
   updateAttendanceMachineBuyerOrderApi,
 } from "@/services/attendanceMachineService"
+import {
+  approvePaymentOrderApi,
+  rejectPaymentOrderApi,
+} from "@/services/subscriptionService"
 import type {
   AttendanceMachineBuyerCounts,
   AttendanceMachineBuyerOrder,
@@ -110,7 +114,9 @@ function getBasePlanStatusBadge(status: string | null) {
 export default function AttendanceMachineBuyers() {
   const token = useAppSelector((state) => state.auth.token)
   const { can } = usePermission()
-  const canManage = can("attendance_machines", ["can_manage", "can_edit"])
+  const canManage =
+    can("machines_buyers", ["can_manage", "can_edit"]) ||
+    can("attendance_machines", ["can_manage", "can_edit"])
 
   const [buyers, setBuyers] = useState<AttendanceMachineBuyerOrder[]>([])
   const [counts, setCounts] = useState<AttendanceMachineBuyerCounts>(INITIAL_COUNTS)
@@ -129,7 +135,7 @@ export default function AttendanceMachineBuyers() {
   // Edit Order / Device Modal
   const [editingOrder, setEditingOrder] = useState<AttendanceMachineBuyerOrder | null>(null)
   const [editOrderStatus, setEditOrderStatus] = useState<HardwareOrderStatus>("pending")
-  const [editDeviceStatus, setEditDeviceStatus] = useState<number>(0)
+  const [editDeviceStatus, setEditDeviceStatus] = useState<number>(2)
   const [editSerialNo, setEditSerialNo] = useState("")
   const [editLocation, setEditLocation] = useState("")
   const [editIpAddress, setEditIpAddress] = useState("")
@@ -137,6 +143,7 @@ export default function AttendanceMachineBuyers() {
   const [editShippingAddress, setEditShippingAddress] = useState("")
   const [editRemarks, setEditRemarks] = useState("")
   const [isSaving, setIsSaving] = useState(false)
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -172,7 +179,7 @@ export default function AttendanceMachineBuyers() {
   const openEditModal = (order: AttendanceMachineBuyerOrder) => {
     setEditingOrder(order)
     setEditOrderStatus((order.order_status || "pending") as HardwareOrderStatus)
-    setEditDeviceStatus(Number(order.status) === 1 ? 1 : 0)
+    setEditDeviceStatus(Number(order.status) === 1 ? 1 : 2)
     setEditSerialNo(order.device_serial_number || "")
     setEditLocation(order.device_location || "")
     setEditIpAddress(order.ip_address || "")
@@ -202,6 +209,38 @@ export default function AttendanceMachineBuyers() {
       toast.error(err instanceof Error ? err.message : "Failed to update order.")
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleVerifyPaymentOrder = async (approve: boolean) => {
+    if (!token || !editingOrder?.payment_order_id) return
+    setIsVerifyingPayment(true)
+    try {
+      if (approve) {
+        await approvePaymentOrderApi(
+          token,
+          editingOrder.payment_order_id,
+          editRemarks.trim() || "Offline UTR payment order verified via Attendance Machine Buyers"
+        )
+        toast.success(
+          `Payment Order ${editingOrder.payment_order_no || `#${editingOrder.payment_order_id}`} verified! Hardware order is now Approved and ready for independent dispatch.`
+        )
+      } else {
+        await rejectPaymentOrderApi(
+          token,
+          editingOrder.payment_order_id,
+          editRemarks.trim() || "Offline UTR payment order rejected via Attendance Machine Buyers"
+        )
+        toast.info(
+          `Payment Order ${editingOrder.payment_order_no || `#${editingOrder.payment_order_id}`} rejected.`
+        )
+      }
+      setEditingOrder(null)
+      loadBuyers()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to process payment order verification.")
+    } finally {
+      setIsVerifyingPayment(false)
     }
   }
 
@@ -694,6 +733,28 @@ export default function AttendanceMachineBuyers() {
                     <span className="text-muted-foreground">Payment Ref:</span>
                     <p className="font-mono truncate">{selectedOrder.payment_transaction_id || "—"}</p>
                   </div>
+                  {selectedOrder.payment_order_no && (
+                    <div>
+                      <span className="text-muted-foreground">Payment Order:</span>
+                      <p className="font-mono font-semibold text-foreground">
+                        {selectedOrder.payment_order_no}{" "}
+                        <span className="uppercase text-[10px] text-muted-foreground">
+                          ({selectedOrder.payment_order_status || "—"})
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                  {selectedOrder.company_bank_name && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Received in Bank A/C:</span>
+                      <p className="font-medium text-foreground">
+                        {selectedOrder.company_bank_name}
+                        {selectedOrder.company_account_number
+                          ? ` • A/C ${selectedOrder.company_account_number}`
+                          : ""}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {selectedOrder.remarks && (
@@ -738,6 +799,63 @@ export default function AttendanceMachineBuyers() {
           </DialogHeader>
 
           <div className="space-y-3.5 py-2">
+            {editingOrder?.payment_order_id &&
+              editingOrder.payment_order_status === "pending_verification" && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-2 text-xs">
+                  <div className="font-semibold text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                    <span>Offline UTR Payment Verification Required</span>
+                    <span className="font-mono">{editingOrder.payment_order_no}</span>
+                  </div>
+                  <div className="text-muted-foreground space-y-0.5">
+                    <p>
+                      UTR Ref:{" "}
+                      <strong className="font-mono text-foreground">
+                        {editingOrder.utr_number || editingOrder.payment_transaction_id || "—"}
+                      </strong>
+                      {editingOrder.payment_order_total
+                        ? ` • Order Total: ${formatPrice(editingOrder.payment_order_total)}`
+                        : ""}
+                    </p>
+                    {editingOrder.company_bank_name && (
+                      <p>
+                        Company Bank:{" "}
+                        <strong className="text-foreground">
+                          {editingOrder.company_bank_name}
+                          {editingOrder.company_account_number
+                            ? ` (A/C ${editingOrder.company_account_number})`
+                            : ""}
+                        </strong>
+                      </p>
+                    )}
+                    <p className="text-[11px] pt-0.5">
+                      Hardware cannot be dispatched or delivered until this Payment Order UTR is verified.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isVerifyingPayment || isSaving}
+                      onClick={() => handleVerifyPaymentOrder(true)}
+                      className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                    >
+                      {isVerifyingPayment ? <Loader2 className="size-3.5 animate-spin mr-1" /> : null}
+                      Verify UTR Payment Order
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={isVerifyingPayment || isSaving}
+                      onClick={() => handleVerifyPaymentOrder(false)}
+                      className="h-7 text-xs text-rose-600 border-rose-300 hover:bg-rose-500/10 cursor-pointer"
+                    >
+                      Reject UTR
+                    </Button>
+                  </div>
+                </div>
+              )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Order Delivery Status</Label>
@@ -746,11 +864,19 @@ export default function AttendanceMachineBuyers() {
                   onChange={(e) => setEditOrderStatus(e.target.value as HardwareOrderStatus)}
                   className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
                 >
-                  {ORDER_STATUS_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
+                  {ORDER_STATUS_OPTIONS.map((opt) => {
+                    const isUnpaidOrder =
+                      Boolean(editingOrder?.payment_order_id) &&
+                      editingOrder?.payment_order_status !== "paid"
+                    const disabledOpt =
+                      isUnpaidOrder && ["approved", "dispatched", "delivered"].includes(opt.value)
+                    return (
+                      <option key={opt.value} value={opt.value} disabled={disabledOpt}>
+                        {opt.label}
+                        {disabledOpt ? " (Verify UTR first)" : ""}
+                      </option>
+                    )
+                  })}
                 </select>
               </div>
 
@@ -762,7 +888,7 @@ export default function AttendanceMachineBuyers() {
                   className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value={1}>Online / Active</option>
-                  <option value={0}>Offline / Inactive</option>
+                  <option value={2}>Offline / Inactive</option>
                 </select>
               </div>
             </div>

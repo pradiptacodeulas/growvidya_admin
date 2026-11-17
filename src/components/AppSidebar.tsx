@@ -34,6 +34,7 @@ import {
   Mail,
   ShoppingBag,
   Headset,
+  Bell,
 } from "lucide-react"
 import { Link, useLocation } from "react-router"
 import { useState, useEffect } from "react"
@@ -84,11 +85,13 @@ export function AppSidebar() {
   const canViewSubscriptions = can(["subscriptions", "schools"], "can_view")
   const canViewPackages = can("packages", "can_view")
   const canViewAttendanceMachines = can("attendance_machines", "can_view")
-  const canViewMachinesBuyers = can("machines_buyers", "can_view")
+  const canViewMachinesBuyers = can(["machines_buyers", "attendance_machines"], "can_view")
   const canViewRfidCards = can("rfid_cards", "can_view")
-  const canViewRfidBuyers = can("rfid_buyers", "can_view")
+  const canViewRfidBuyers = can(["rfid_buyers", "rfid_cards"], "can_view")
   const canViewStoragePlans = can("storage_plans", "can_view")
-  const canViewStorageBuyers = can("storage_buyers", "can_view")
+  const canViewStorageBuyers = can(["storage_buyers", "storage_plans"], "can_view")
+  const canViewNotifications = can(["packages", "email_delivery", "email_settings"], "can_view")
+  const canViewNotificationBuyers = can(["subscriptions", "schools", "packages", "email_delivery"], "can_view")
   const canViewPaymentGateway = can("payment_gateway", "can_view")
   const canViewEmailDelivery = can("email_delivery", "can_view") || can("email_settings", "can_view")
 
@@ -96,6 +99,7 @@ export function AppSidebar() {
   const canViewAnyMachineSubItem = canViewAttendanceMachines || canViewMachinesBuyers
   const canViewAnyRfidSubItem = canViewRfidCards || canViewRfidBuyers
   const canViewAnyStorageSubItem = canViewStoragePlans || canViewStorageBuyers
+  const canViewAnyNotificationSubItem = canViewNotifications || canViewNotificationBuyers
   const canViewAnySettingsSubItem = canViewPaymentGateway || canViewEmailDelivery
 
   const visibleNavItems = navItems.filter((item) => can(item.moduleKey, "can_view"))
@@ -109,12 +113,14 @@ export function AppSidebar() {
   const isAttendanceMachineRoute = location.pathname.startsWith("/attendance-machines")
   const isRfidRoute = location.pathname.startsWith("/rfid-cards")
   const isStoragePlanRoute = location.pathname.startsWith("/storage-plans")
+  const isNotificationRoute = location.pathname.startsWith("/notifications")
   const isSettingsRoute = location.pathname.startsWith("/settings")
 
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(true)
   const [isRfidOpen, setIsRfidOpen] = useState(true)
   const [isAttendanceMachineOpen, setIsAttendanceMachineOpen] = useState(true)
   const [isStoragePlanOpen, setIsStoragePlanOpen] = useState(true)
+  const [isNotificationOpen, setIsNotificationOpen] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(true)
 
   useEffect(() => {
@@ -132,6 +138,10 @@ export function AppSidebar() {
   useEffect(() => {
     if (isStoragePlanRoute) setIsStoragePlanOpen(true)
   }, [isStoragePlanRoute])
+
+  useEffect(() => {
+    if (isNotificationRoute) setIsNotificationOpen(true)
+  }, [isNotificationRoute])
 
   useEffect(() => {
     if (isSettingsRoute) setIsSettingsOpen(true)
@@ -157,11 +167,14 @@ export function AppSidebar() {
   const isManageStorageActive =
     isStoragePlanRoute && !location.pathname.startsWith("/storage-plans/buyers")
   const isStorageBuyersActive = location.pathname.startsWith("/storage-plans/buyers")
+  const isManageNotificationsActive = isNotificationRoute && !location.pathname.startsWith("/notifications/buyers")
+  const isNotificationBuyersActive = location.pathname.startsWith("/notifications/buyers")
 
   const isSubscriptionParentActive = !isSubscriptionOpen && isSubscriptionRoute
   const isAttendanceMachineParentActive = !isAttendanceMachineOpen && isAttendanceMachineRoute
   const isRfidParentActive = !isRfidOpen && isRfidRoute
   const isStoragePlanParentActive = !isStoragePlanOpen && isStoragePlanRoute
+  const isNotificationParentActive = !isNotificationOpen && isNotificationRoute
 
   const isPaymentGatewayActive =
     location.pathname === "/settings/payment-gateway" ||
@@ -449,6 +462,59 @@ export function AppSidebar() {
                           >
                             <ShoppingBag className="size-3.5 shrink-0 text-primary" />
                             <span>Storage Buyers</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      )}
+                    </SidebarMenuSub>
+                  )}
+                </SidebarMenuItem>
+              )}
+
+              {/* Email/Push Notification Dropdown (Manage + Buyers) */}
+              {canViewAnyNotificationSubItem && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setIsNotificationOpen((prev) => !prev)}
+                    isActive={isNotificationParentActive}
+                    tooltip="Email/Push Notification"
+                    className="h-9 px-3 text-[14px] font-medium gap-3 transition-colors [&>svg]:size-[18px] cursor-pointer justify-between"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Bell className="shrink-0" />
+                      <span className="truncate">Email/Push Notification</span>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        "size-4 shrink-0 transition-transform duration-200 text-muted-foreground group-data-[collapsible=icon]:hidden",
+                        isNotificationOpen && "rotate-180"
+                      )}
+                    />
+                  </SidebarMenuButton>
+
+                  {isNotificationOpen && (
+                    <SidebarMenuSub>
+                      {canViewNotifications && (
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            isActive={isManageNotificationsActive}
+                            className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                            render={<Link to="/notifications" />}
+                          >
+                            <Bell className="size-3.5 shrink-0" />
+                            <span>Manage Notification</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      )}
+
+                      {canViewNotificationBuyers && (
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            isActive={isNotificationBuyersActive}
+                            className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                            render={<Link to="/notifications/buyers" />}
+                          >
+                            <ShoppingBag className="size-3.5 shrink-0 text-primary" />
+                            <span>Notification Buyers</span>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )}

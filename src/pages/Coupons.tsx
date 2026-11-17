@@ -7,7 +7,7 @@ import {
   deleteCouponApi,
   toggleCouponStatusApi,
 } from "@/services/couponService"
-import type { Coupon, PaginationInfo } from "@/types/coupon"
+import type { Coupon, CouponSummary, PaginationInfo } from "@/types/coupon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -92,6 +92,7 @@ export default function Coupons() {
   const canDeleteCoupon = can("coupons", "can_delete")
   const canManageCoupon = can("coupons", "can_manage")
   const [coupons, setCoupons] = useState<Coupon[]>([])
+  const [summary, setSummary] = useState<CouponSummary | null>(null)
   const [pagination, setPagination] = useState<PaginationInfo | null>(null)
   const [isLoading, setIsLoading] = useState(Boolean(token))
   const [error, setError] = useState<string | null>(null)
@@ -143,7 +144,7 @@ export default function Coupons() {
 
   const handleToggleStatus = async (coupon: Coupon) => {
     if (!token) return
-    const nextStatus = coupon.status === 1 ? 0 : 1
+    const nextStatus = coupon.status === 1 ? 2 : 1
     try {
       await toggleCouponStatusApi(token, coupon.id, nextStatus)
       toast.success(
@@ -151,6 +152,15 @@ export default function Coupons() {
       )
       setCoupons((prev) =>
         prev.map((c) => (c.id === coupon.id ? { ...c, status: nextStatus } : c))
+      )
+      setSummary((prev) =>
+        prev
+          ? {
+              ...prev,
+              active_coupons: Math.max(0, prev.active_coupons + (nextStatus === 1 ? 1 : -1)),
+              inactive_coupons: Math.max(0, prev.inactive_coupons + (nextStatus === 2 ? 1 : -1)),
+            }
+          : prev
       )
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to toggle status."
@@ -189,6 +199,7 @@ export default function Coupons() {
       .then((data) => {
         if (!isMounted) return
         setCoupons(data.coupons)
+        setSummary(data.summary || null)
         setPagination(data.pagination)
         if (data.pagination.totalPages > 0 && page > data.pagination.totalPages) {
           setPage(data.pagination.totalPages)
@@ -258,24 +269,25 @@ export default function Coupons() {
   }
 
 
-  // Aggregate Metrics
+  // Aggregate Metrics (uses authoritative global summary from backend, with page fallback)
   const stats = useMemo(() => {
-    const total = pagination ? pagination.total : coupons.length
-    const active = coupons.filter((c) => c.status === 1).length
-    const totalRedemptions = coupons.reduce(
-      (sum, c) => sum + (c.total_redemptions ?? c.used_count ?? 0),
-      0
-    )
-    const totalDiscount = coupons.reduce((sum, c) => {
-      const val =
-        typeof c.total_discount_given === "string"
-          ? parseFloat(c.total_discount_given)
-          : c.total_discount_given
-      return sum + (val || 0)
-    }, 0)
+    const total = summary?.total_coupons ?? (pagination ? pagination.total : coupons.length)
+    const active = summary?.active_coupons ?? coupons.filter((c) => c.status === 1).length
+    const totalRedemptions =
+      summary?.total_redemptions ??
+      coupons.reduce((sum, c) => sum + (c.total_redemptions ?? c.used_count ?? 0), 0)
+    const totalDiscount =
+      summary?.total_discount_given ??
+      coupons.reduce((sum, c) => {
+        const val =
+          typeof c.total_discount_given === "string"
+            ? parseFloat(c.total_discount_given)
+            : c.total_discount_given
+        return sum + (val || 0)
+      }, 0)
 
     return { total, active, totalRedemptions, totalDiscount }
-  }, [coupons, pagination])
+  }, [coupons, pagination, summary])
 
   const totalPages = pagination?.totalPages || 1
   const hasPrev = pagination ? pagination.hasPrevPage : page > 1

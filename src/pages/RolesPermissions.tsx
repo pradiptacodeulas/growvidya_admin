@@ -170,7 +170,7 @@ export default function RolesPermissions() {
     setRoleSlug(role.slug || generateSlug(role.role_name))
     setSlugManuallyEdited(true)
     setRoleDescription(role.description || "")
-    setRoleStatus(Number(role.status) === 0 ? 0 : 1)
+    setRoleStatus(Number(role.status) === 2 ? 2 : 1)
     setIsModalOpen(true)
 
     try {
@@ -210,7 +210,7 @@ export default function RolesPermissions() {
       toast.error("Protected system roles cannot be deactivated.")
       return
     }
-    const nextStatus = Number(role.status) === 1 ? 0 : 1
+    const nextStatus = Number(role.status) === 1 ? 2 : 1
     try {
       await toggleRoleStatusApi(token, role.id, nextStatus)
       toast.success(
@@ -515,7 +515,7 @@ export default function RolesPermissions() {
           </div>
 
           <div className="flex items-center gap-2">
-            {(["all", "1", "0"] as const).map((tab) => (
+            {(["all", "1", "2"] as const).map((tab) => (
               <Button
                 key={tab}
                 variant={statusFilter === tab ? "default" : "outline"}
@@ -765,7 +765,7 @@ export default function RolesPermissions() {
                   className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
                 >
                   <option value={1}>Active</option>
-                  <option value={0}>Inactive</option>
+                  <option value={2}>Inactive</option>
                 </select>
               </div>
             </div>

@@ -72,7 +72,7 @@ export default function EditBankAccount() {
     qr_code_image: "",
     qr_code_file: null,
     is_default: false,
-    status: true,
+    status: 1,
   })
 
   useEffect(() => {
@@ -96,7 +96,7 @@ export default function EditBankAccount() {
           qr_code_image: data.qr_code_image || "",
           qr_code_file: null,
           is_default: Boolean(data.is_default),
-          status: Boolean(data.status),
+          status: Number(data.status) === 1 ? 1 : 2,
         })
         if (data.qr_code_image) {
           setFilePreview(getFullImageUrl(data.qr_code_image))

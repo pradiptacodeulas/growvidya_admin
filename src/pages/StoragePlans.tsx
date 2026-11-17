@@ -106,7 +106,7 @@ export default function StoragePlans() {
     try {
       const data = await fetchStoragePlansApi(token, {
         search: debouncedSearch,
-        status: statusFilter === "all" ? undefined : statusFilter === "active" ? 1 : 0,
+        status: statusFilter === "all" ? undefined : statusFilter === "active" ? 1 : 2,
         page,
         limit: pageSize,
       })
@@ -184,7 +184,7 @@ export default function StoragePlans() {
   // Toggle status
   const handleToggleStatus = async (plan: StoragePlan) => {
     if (!token || togglingId === plan.id) return
-    const newStatus: 0 | 1 = Number(plan.status) === 1 ? 0 : 1
+    const newStatus: 1 | 2 = Number(plan.status) === 1 ? 2 : 1
     setTogglingId(plan.id)
 
     try {

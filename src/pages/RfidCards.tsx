@@ -107,7 +107,7 @@ export default function RfidCards() {
     try {
       const data = await fetchRfidCardsApi(token, {
         search: debouncedSearch,
-        status: statusFilter === "all" ? undefined : statusFilter === "active" ? 1 : 0,
+        status: statusFilter === "all" ? undefined : statusFilter === "active" ? 1 : 2,
         page,
         limit: pageSize,
       })
@@ -160,7 +160,7 @@ export default function RfidCards() {
   // Toggle status
   const handleToggleStatus = async (card: RfidCard) => {
     if (!token || togglingId !== null) return
-    const newStatus = card.status === 1 ? 0 : 1
+    const newStatus = card.status === 1 ? 2 : 1
     setTogglingId(card.id)
     try {
       await toggleRfidCardStatusApi(token, card.id, newStatus)

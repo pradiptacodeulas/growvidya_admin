@@ -1,4 +1,4 @@
-import { API_BASE_URL, SERVER_BASE_URL } from "@/config/api"
+import { API_BASE_URL } from "@/config/api"
 import type {
   AttendanceMachine,
   AttendanceMachineBuyerCounts,
@@ -97,27 +97,13 @@ export async function fetchAttendanceMachinesApi(
 
   const queryString = query.toString() ? `?${query.toString()}` : ""
 
-  try {
-    const res = await fetch(`${API_BASE_URL}/attendance-machines${queryString}`, {
-      method: "GET",
-      headers: getAuthHeaders(token),
-    })
-    return normalizeMachineList(
-      await handleResponse<AttendanceMachineListResult>(res, "Failed to retrieve attendance machines.")
-    )
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status
-    if (status === 404 || status === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/attendance-machines${queryString}`, {
-        method: "GET",
-        headers: getAuthHeaders(token),
-      })
-      return normalizeMachineList(
-        await handleResponse<AttendanceMachineListResult>(fallbackRes, "Failed to retrieve attendance machines.")
-      )
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/attendance-machines${queryString}`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+  return normalizeMachineList(
+    await handleResponse<AttendanceMachineListResult>(res, "Failed to retrieve attendance machines.")
+  )
 }
 
 export async function fetchAttendanceMachineBuyersApi(
@@ -177,23 +163,11 @@ export async function fetchAttendanceMachineByIdApi(
   token: string,
   id: number
 ): Promise<AttendanceMachine> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/attendance-machines/${id}`, {
-      method: "GET",
-      headers: getAuthHeaders(token),
-    })
-    return await handleResponse<AttendanceMachine>(res, "Failed to retrieve attendance machine.")
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status
-    if (status === 404 || status === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/attendance-machines/${id}`, {
-        method: "GET",
-        headers: getAuthHeaders(token),
-      })
-      return await handleResponse<AttendanceMachine>(fallbackRes, "Failed to retrieve attendance machine.")
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/attendance-machines/${id}`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+  return await handleResponse<AttendanceMachine>(res, "Failed to retrieve attendance machine.")
 }
 
 export async function createAttendanceMachineApi(
@@ -224,25 +198,12 @@ export async function createAttendanceMachineApi(
     body = JSON.stringify(payload)
   }
 
-  try {
-    const res = await fetch(`${API_BASE_URL}/attendance-machines`, {
-      method: "POST",
-      headers: getAuthHeaders(token, isJson),
-      body,
-    })
-    return await handleResponse<AttendanceMachine>(res, "Failed to create attendance machine.")
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status
-    if (status === 404 || status === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/attendance-machines`, {
-        method: "POST",
-        headers: getAuthHeaders(token, isJson),
-        body,
-      })
-      return await handleResponse<AttendanceMachine>(fallbackRes, "Failed to create attendance machine.")
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/attendance-machines`, {
+    method: "POST",
+    headers: getAuthHeaders(token, isJson),
+    body,
+  })
+  return await handleResponse<AttendanceMachine>(res, "Failed to create attendance machine.")
 }
 
 export async function updateAttendanceMachineApi(
@@ -274,25 +235,12 @@ export async function updateAttendanceMachineApi(
     body = JSON.stringify(payload)
   }
 
-  try {
-    const res = await fetch(`${API_BASE_URL}/attendance-machines/${id}`, {
-      method: "PUT",
-      headers: getAuthHeaders(token, isJson),
-      body,
-    })
-    return await handleResponse<AttendanceMachine>(res, "Failed to update attendance machine.")
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status
-    if (status === 404 || status === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/attendance-machines/${id}`, {
-        method: "PUT",
-        headers: getAuthHeaders(token, isJson),
-        body,
-      })
-      return await handleResponse<AttendanceMachine>(fallbackRes, "Failed to update attendance machine.")
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/attendance-machines/${id}`, {
+    method: "PUT",
+    headers: getAuthHeaders(token, isJson),
+    body,
+  })
+  return await handleResponse<AttendanceMachine>(res, "Failed to update attendance machine.")
 }
 
 export async function toggleAttendanceMachineStatusApi(
@@ -300,46 +248,21 @@ export async function toggleAttendanceMachineStatusApi(
   id: number,
   status: number
 ): Promise<{ message: string }> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/attendance-machines/${id}/status`, {
-      method: "PATCH",
-      headers: getAuthHeaders(token),
-      body: JSON.stringify({ status }),
-    })
-    return await handleResponse<{ message: string }>(res, "Failed to update machine status.")
-  } catch (err: unknown) {
-    const statusErr = (err as { status?: number })?.status
-    if (statusErr === 404 || statusErr === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/attendance-machines/${id}/status`, {
-        method: "PATCH",
-        headers: getAuthHeaders(token),
-        body: JSON.stringify({ status }),
-      })
-      return await handleResponse<{ message: string }>(fallbackRes, "Failed to update machine status.")
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/attendance-machines/${id}/status`, {
+    method: "PATCH",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify({ status }),
+  })
+  return await handleResponse<{ message: string }>(res, "Failed to update machine status.")
 }
 
 export async function deleteAttendanceMachineApi(
   token: string,
   id: number
 ): Promise<{ message: string }> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/attendance-machines/${id}`, {
-      method: "DELETE",
-      headers: getAuthHeaders(token),
-    })
-    return await handleResponse<{ message: string }>(res, "Failed to delete machine.")
-  } catch (err: unknown) {
-    const statusErr = (err as { status?: number })?.status
-    if (statusErr === 404 || statusErr === 403) {
-      const fallbackRes = await fetch(`${SERVER_BASE_URL}/api/attendance-machines/${id}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(token),
-      })
-      return await handleResponse<{ message: string }>(fallbackRes, "Failed to delete machine.")
-    }
-    throw err
-  }
+  const res = await fetch(`${API_BASE_URL}/attendance-machines/${id}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(token),
+  })
+  return await handleResponse<{ message: string }>(res, "Failed to delete machine.")
 }

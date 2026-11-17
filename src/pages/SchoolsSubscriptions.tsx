@@ -28,11 +28,14 @@ import {
   approveSubscriptionApi,
   rejectSubscriptionApi,
   updateSubscriptionStatusApi,
-  fetchSchoolsLookupApi,
-  fetchPackagesApi,
+  fetchAssignSubscriptionOptionsApi,
   manualAssignSubscriptionApi,
+  getTodayDateIST,
+  computeDynamicCycleEndDate,
+  formatDynamicCycleLabel,
 } from "@/services/subscriptionService"
 import type {
+  BillingCycleMeta,
   SchoolSubscription,
   SubscriptionCounts,
   SubscriptionsPagination,
@@ -59,47 +62,6 @@ import {
   FileText,
 } from "lucide-react"
 
-function computeCycleEndDate(startStr: string, cycle: string): string {
-  const d = new Date(`${startStr}T00:00:00`)
-  if (isNaN(d.getTime())) return startStr
-  switch (cycle) {
-    case "monthly":
-      d.setMonth(d.getMonth() + 1)
-      break
-    case "quarterly":
-      d.setMonth(d.getMonth() + 3)
-      break
-    case "half_yearly":
-      d.setMonth(d.getMonth() + 6)
-      break
-    case "trial":
-      d.setDate(d.getDate() + 14)
-      break
-    case "annual":
-    default:
-      d.setFullYear(d.getFullYear() + 1)
-      break
-  }
-  return d.toISOString().split("T")[0]
-}
-
-function formatCycleLabel(cycle?: string) {
-  switch (cycle) {
-    case "monthly":
-      return "Monthly"
-    case "quarterly":
-      return "Quarterly"
-    case "half_yearly":
-      return "Half-Yearly"
-    case "annual":
-      return "Annual"
-    case "trial":
-      return "Free Trial"
-    default:
-      return cycle || "—"
-  }
-}
-
 export default function SchoolsSubscriptions() {
   const token = useAppSelector((state) => state.auth.token)
   const { can } = usePermission()
@@ -107,6 +69,13 @@ export default function SchoolsSubscriptions() {
   const canViewPackages = can("packages", "can_view")
 
   const [subscriptions, setSubscriptions] = useState<SchoolSubscription[]>([])
+  const [billingCycles, setBillingCycles] = useState<BillingCycleMeta[]>([])
+
+  const resolveCycleMeta = useCallback(
+    (cycle?: string | null, rowMeta?: SchoolSubscription["cycle_meta"]) =>
+      rowMeta || billingCycles.find((c) => c.code === cycle) || null,
+    [billingCycles]
+  )
   const [counts, setCounts] = useState<SubscriptionCounts>({
     total: 0,
     pending: 0,
@@ -179,6 +148,9 @@ export default function SchoolsSubscriptions() {
       if (data.counts) {
         setCounts(data.counts)
       }
+      if (data.meta?.billing_cycles) {
+        setBillingCycles(data.meta.billing_cycles)
+      }
     } catch (err: any) {
       console.error("Failed to fetch subscriptions:", err)
       toast.error(err?.message || "Could not load subscription records.")
@@ -204,12 +176,12 @@ export default function SchoolsSubscriptions() {
     setSchoolSearchInput("")
     setIsLoadingLookup(true)
     try {
-      const [schools, pkgRes] = await Promise.all([
-        fetchSchoolsLookupApi(token, ""),
-        fetchPackagesApi(token, { status: 1, limit: 100 }),
-      ])
-      setSchoolsList(schools || [])
-      setActivePlans(pkgRes?.packages || [])
+      const res = await fetchAssignSubscriptionOptionsApi(token, "")
+      setSchoolsList(res?.schools || [])
+      setActivePlans(res?.packages || [])
+      if (res?.billing_cycles?.length) {
+        setBillingCycles(res.billing_cycles)
+      }
     } catch (err: any) {
       toast.error(err?.message || "Failed to load schools & plans for manual assignment.")
     } finally {
@@ -221,8 +193,8 @@ export default function SchoolsSubscriptions() {
     if (!token) return
     setIsLoadingLookup(true)
     try {
-      const schools = await fetchSchoolsLookupApi(token, schoolSearchInput)
-      setSchoolsList(schools || [])
+      const res = await fetchAssignSubscriptionOptionsApi(token, schoolSearchInput)
+      setSchoolsList(res?.schools || [])
     } catch (err: any) {
       toast.error(err?.message || "Failed to search schools.")
     } finally {
@@ -269,12 +241,18 @@ export default function SchoolsSubscriptions() {
   // Open approval modal
   const handleOpenApprove = (sub: SchoolSubscription) => {
     setSelectedSubForApproval(sub)
-    const todayStr = new Date().toISOString().split("T")[0]
+    const todayStr = getTodayDateIST()
     setApprovalStartDate(todayStr)
-    setApprovalEndDate(computeCycleEndDate(todayStr, sub.billing_cycle))
+    setApprovalEndDate(
+      computeDynamicCycleEndDate(
+        todayStr,
+        resolveCycleMeta(sub.billing_cycle, sub.cycle_meta),
+        sub.free_trial_days
+      )
+    )
     setUseCustomApprovalDates(false)
     setApprovalNotes(
-      `Offline Bank Transfer verified and approved by Super Admin on ${new Date().toLocaleDateString()}`
+      `Offline Bank Transfer verified and approved by Super Admin on ${todayStr}`
     )
     setIsApproveOpen(true)
   }
@@ -452,15 +430,22 @@ export default function SchoolsSubscriptions() {
 
   const schoolSelectLabels: Record<string, string> = {}
   for (const s of schoolsList) {
+    const countsParts: string[] = []
+    if (s.student_count !== undefined) countsParts.push(`${s.student_count} Stu`)
+    if (s.teacher_count !== undefined) countsParts.push(`${s.teacher_count} Tch`)
+    if (s.staff_count !== undefined) countsParts.push(`${s.staff_count} Stf`)
     schoolSelectLabels[String(s.id)] = `${s.school_name} (${s.school_code})${
-      s.plan_name ? ` — Current: ${s.plan_name}` : ""
-    }`
+      countsParts.length > 0 ? ` [${countsParts.join(" • ")}]` : ""
+    }${s.plan_name ? ` — Current: ${s.plan_name}` : ""}`
   }
 
   const planSelectLabels: Record<string, string> = {}
   for (const p of activePlans) {
-    planSelectLabels[String(p.id)] = `${p.plan_name} [Tier ${p.tier_rank || 1} • ${formatCycleLabel(
-      p.billing_cycle
+    const tierDisplay =
+      String(p.billing_cycle || "").toLowerCase() === "trial" ? 0 : (p.tier_rank ?? 1)
+    planSelectLabels[String(p.id)] = `${p.plan_name} [Tier ${tierDisplay} • ${formatDynamicCycleLabel(
+      p.billing_cycle,
+      resolveCycleMeta(p.billing_cycle, p.cycle_meta)
     )} • ₹${Number(p.price || 0).toLocaleString("en-IN")}]`
   }
 
@@ -865,7 +850,7 @@ export default function SchoolsSubscriptions() {
               ) : (
                 subscriptions.map((sub) => {
                   const isPending = sub.status === "pending"
-                  const isActive = sub.status === "active"
+                  const isActive = sub.status === "active" || sub.status === "trial"
                   const isSuspended = sub.status === "suspended"
                   const addonsAmt = parseFloat(String(sub.addons_amount || 0))
                   const planAmt = parseFloat(String(sub.plan_amount ?? sub.plan_price ?? 0))
@@ -912,7 +897,7 @@ export default function SchoolsSubscriptions() {
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-medium text-foreground">{sub.plan_name}</span>
-                          {sub.tier_rank ? (
+                          {sub.tier_rank !== undefined && sub.tier_rank !== null ? (
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
                               T{sub.tier_rank}
                             </Badge>
@@ -920,7 +905,10 @@ export default function SchoolsSubscriptions() {
                         </div>
                         <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5 flex-wrap">
                           <span className="font-semibold text-foreground/80">
-                            {formatCycleLabel(sub.billing_cycle)}
+                            {formatDynamicCycleLabel(
+                              sub.billing_cycle,
+                              resolveCycleMeta(sub.billing_cycle, sub.cycle_meta)
+                            )}
                           </span>
                           {sub.action_type && (
                             <>
@@ -957,6 +945,12 @@ export default function SchoolsSubscriptions() {
                             </span>
                           )}
                         </div>
+                        {sub.company_bank_name && (
+                          <div className="text-[11px] text-muted-foreground truncate max-w-[200px]" title={`${sub.company_bank_name} ${sub.company_account_number || ""}`}>
+                            Bank: {sub.company_bank_name}
+                            {sub.company_account_number ? ` (…${sub.company_account_number.slice(-4)})` : ""}
+                          </div>
+                        )}
                       </td>
 
                       {/* Payment Status */}
@@ -1109,7 +1103,14 @@ export default function SchoolsSubscriptions() {
                   <span className="text-muted-foreground">Requested Plan:</span>
                   <span className="font-semibold text-foreground">
                     {selectedSubForApproval.plan_name} (
-                    {formatCycleLabel(selectedSubForApproval.billing_cycle)})
+                    {formatDynamicCycleLabel(
+                      selectedSubForApproval.billing_cycle,
+                      resolveCycleMeta(
+                        selectedSubForApproval.billing_cycle,
+                        selectedSubForApproval.cycle_meta
+                      )
+                    )}
+                    )
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -1127,6 +1128,17 @@ export default function SchoolsSubscriptions() {
                       : ""}
                   </span>
                 </div>
+                {selectedSubForApproval.company_bank_name && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Company Bank Account:</span>
+                    <span className="font-medium text-xs text-foreground text-right">
+                      {selectedSubForApproval.company_bank_name}
+                      {selectedSubForApproval.company_account_number
+                        ? ` • A/C ${selectedSubForApproval.company_account_number}`
+                        : ""}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Automatic Renewal Stacking vs Custom Date Override */}
@@ -1155,7 +1167,14 @@ export default function SchoolsSubscriptions() {
                           setApprovalStartDate(e.target.value)
                           if (e.target.value && selectedSubForApproval) {
                             setApprovalEndDate(
-                              computeCycleEndDate(e.target.value, selectedSubForApproval.billing_cycle)
+                              computeDynamicCycleEndDate(
+                                e.target.value,
+                                resolveCycleMeta(
+                                  selectedSubForApproval.billing_cycle,
+                                  selectedSubForApproval.cycle_meta
+                                ),
+                                selectedSubForApproval.free_trial_days
+                              )
                             )
                           }
                         }}
@@ -1320,7 +1339,14 @@ export default function SchoolsSubscriptions() {
                   <span className="text-muted-foreground">Plan:</span>
                   <span className="font-medium text-foreground">
                     {selectedSubForStatusChange.plan_name} (
-                    {formatCycleLabel(selectedSubForStatusChange.billing_cycle)})
+                    {formatDynamicCycleLabel(
+                      selectedSubForStatusChange.billing_cycle,
+                      resolveCycleMeta(
+                        selectedSubForStatusChange.billing_cycle,
+                        selectedSubForStatusChange.cycle_meta
+                      )
+                    )}
+                    )
                   </span>
                 </div>
                 <div className="flex justify-between">

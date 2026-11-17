@@ -57,7 +57,7 @@ const INITIAL_BANK_FORM: CreateBankAccountPayload = {
   qr_code_image: "",
   qr_code_file: null,
   is_default: false,
-  status: true,
+  status: 1,
 }
 
 export default function CreateBankAccount() {

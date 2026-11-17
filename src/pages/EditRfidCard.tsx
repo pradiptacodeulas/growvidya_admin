@@ -57,12 +57,12 @@ const CARD_TYPE_LABELS: Record<string, string> = {
 
 const STATUS_OPTIONS = [
   { value: "1", label: "Active" },
-  { value: "0", label: "Inactive" },
+  { value: "2", label: "Inactive" },
 ]
 
 const STATUS_LABELS: Record<string, string> = {
   "1": "Active",
-  "0": "Inactive",
+  "2": "Inactive",
 }
 
 const FREQUENCY_PRESETS = [
@@ -91,6 +91,8 @@ export default function EditRfidCard() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [filePreview, setFilePreview] = useState<string | null>(null)
+  const [hadInitialImage, setHadInitialImage] = useState(false)
+  const [imageRemoved, setImageRemoved] = useState(false)
 
   // Form State
   const [cardName, setCardName] = useState("")
@@ -124,6 +126,7 @@ export default function EditRfidCard() {
         const img = card.card_image || card.rfid_image
         if (img) {
           setFilePreview(getFullImageUrl(img))
+          setHadInitialImage(true)
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to load RFID card."
@@ -153,12 +156,14 @@ export default function EditRfidCard() {
     }
 
     setSelectedFile(file)
+    setImageRemoved(false)
     setFilePreview(URL.createObjectURL(file))
   }
 
   const handleRemoveFile = () => {
     setSelectedFile(null)
     setFilePreview(null)
+    setImageRemoved(true)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -196,7 +201,11 @@ export default function EditRfidCard() {
         min_order_qty: minOrderQty ? Number(minOrderQty) : 1,
         status,
         description: description.trim(),
-        ...(selectedFile ? { card_image: selectedFile } : {}),
+        ...(selectedFile
+          ? { card_image: selectedFile }
+          : imageRemoved && hadInitialImage
+            ? { card_image: null, rfid_image: null }
+            : {}),
       }
 
       const result = await updateRfidCardApi(token, Number(id), payload)

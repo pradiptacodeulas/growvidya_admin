@@ -4,7 +4,7 @@ import { useAppSelector } from "@/store/store"
 import { useDraftState, clearFormDraft } from "@/hooks/useFormDraft"
 import { toast } from "sonner"
 import { createPackageApi, fetchPackagesApi } from "@/services/subscriptionService"
-import type { BillingCycle, SubscriptionPackage } from "@/types/subscription"
+import type { BillingCycle, BillingCycleMeta, SubscriptionPackage } from "@/types/subscription"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -50,42 +50,10 @@ import {
   X,
 } from "lucide-react"
 
-const CYCLE_MONTHS: Record<BillingCycle, number> = {
-  monthly: 1,
-  quarterly: 3,
-  half_yearly: 6,
-  annual: 12,
-  trial: 0,
-}
-
-const CYCLE_SHORT_SUFFIX: Record<BillingCycle, string> = {
-  monthly: "month",
-  quarterly: "quarter",
-  half_yearly: "6 months",
-  annual: "year",
-  trial: "trial",
-}
-
 function formatCleanPercent(orig: number, sell: number): string {
   if (!(orig > 0) || isNaN(sell) || sell < 0 || orig <= sell) return ""
   const pct = ((orig - sell) / orig) * 100
   return Number(pct.toFixed(2)).toString()
-}
-
-const BILLING_CYCLE_OPTIONS: { value: BillingCycle; label: string }[] = [
-  { value: "monthly", label: "Monthly (1 Month)" },
-  { value: "quarterly", label: "Quarterly (3 Months)" },
-  { value: "half_yearly", label: "Half-Yearly (6 Months)" },
-  { value: "annual", label: "Annually (12 Months)" },
-  { value: "trial", label: "Free Trial" },
-]
-
-const BILLING_CYCLE_LABELS: Record<string, string> = {
-  monthly: "Monthly (1 Month)",
-  quarterly: "Quarterly (3 Months)",
-  half_yearly: "Half-Yearly (6 Months)",
-  annual: "Annually (12 Months)",
-  trial: "Free Trial",
 }
 
 interface PlanFeatureItem {
@@ -116,13 +84,16 @@ export default function CreatePackage() {
   const [originalPrice, setOriginalPrice] = useDraftState(FORM_DRAFT_KEY, "originalPrice", "")
   const [discountPercent, setDiscountPercent] = useDraftState(FORM_DRAFT_KEY, "discountPercent", "")
   const [price, setPrice] = useDraftState(FORM_DRAFT_KEY, "price", "")
-  const [billingCycle, setBillingCycle] = useDraftState<BillingCycle>(FORM_DRAFT_KEY, "billingCycle", "annual")
+  const [billingCycle, setBillingCycle] = useDraftState<BillingCycle>(FORM_DRAFT_KEY, "billingCycle", "")
+  const [billingCycles, setBillingCycles] = useState<BillingCycleMeta[]>([])
   const [existingPackages, setExistingPackages] = useState<SubscriptionPackage[]>([])
   const [freeTrialDays, setFreeTrialDays] = useDraftState<number | "">(FORM_DRAFT_KEY, "freeTrialDays", "")
   const [maxStudents, setMaxStudents] = useDraftState<number | "">(FORM_DRAFT_KEY, "maxStudents", "")
   const [includedStorageGb, setIncludedStorageGb] = useDraftState<number | "">(FORM_DRAFT_KEY, "includedStorageGb", "")
+  const [includedPushCredits, setIncludedPushCredits] = useDraftState<number | "">(FORM_DRAFT_KEY, "includedPushCredits", "")
+  const [includedSmsCredits, setIncludedSmsCredits] = useDraftState<number | "">(FORM_DRAFT_KEY, "includedSmsCredits", "")
   const [isPopular, setIsPopular] = useDraftState<1 | 0>(FORM_DRAFT_KEY, "isPopular", 0)
-  const [status, setStatus] = useDraftState<1 | 0>(FORM_DRAFT_KEY, "status", 1)
+  const [status, setStatus] = useDraftState<1 | 2>(FORM_DRAFT_KEY, "status", 1)
   const [description, setDescription] = useDraftState(FORM_DRAFT_KEY, "description", "")
 
   // Custom Features Repeater Items
@@ -137,9 +108,41 @@ export default function CreatePackage() {
   useEffect(() => {
     if (!token) return
     fetchPackagesApi(token, { limit: 100 })
-      .then((res) => setExistingPackages(res?.packages ?? []))
+      .then((res) => {
+        setExistingPackages(res?.packages ?? [])
+        const cycles = res?.meta?.billing_cycles ?? []
+        setBillingCycles(cycles)
+        if (cycles.length > 0 && !cycles.some((c) => c.code === billingCycle)) {
+          const initialCode = cycles[0].code
+          setBillingCycle(initialCode)
+          if (String(initialCode).toLowerCase() === "trial") {
+            setTierRank(0)
+            setPrice("0")
+            setOriginalPrice("")
+            setDiscountPercent("")
+          }
+        }
+      })
       .catch(() => {})
   }, [token])
+
+  const cycleLabels = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const c of billingCycles) {
+      map[c.code] = c.label
+    }
+    return map
+  }, [billingCycles])
+
+  const currentCycleMeta = useMemo(
+    () => billingCycles.find((c) => c.code === billingCycle) || null,
+    [billingCycles, billingCycle]
+  )
+  const currentCycleMonths = currentCycleMeta?.months ?? 0
+  const currentCycleSuffix =
+    (currentCycleMeta?.suffix || "").replace(/^\//, "").trim() ||
+    currentCycleMeta?.short_label ||
+    billingCycle
 
   const effectiveBaseSlug = useMemo(() => {
     return slugify(
@@ -148,7 +151,7 @@ export default function CreatePackage() {
   }, [planName])
 
   const matchingMonthlyPlan = useMemo(() => {
-    if (CYCLE_MONTHS[billingCycle] <= 1) return null
+    if (currentCycleMonths <= 1) return null
     const parsedRank = Number(tierRank)
     return (
       existingPackages.find((p) => {
@@ -160,7 +163,7 @@ export default function CreatePackage() {
         return parsedRank >= 1 && Number(p.tier_rank) === parsedRank
       }) || null
     )
-  }, [existingPackages, effectiveBaseSlug, tierRank, billingCycle])
+  }, [existingPackages, effectiveBaseSlug, tierRank, currentCycleMonths])
 
   const handleOriginalPriceChange = (val: string) => {
     setOriginalPrice(val)
@@ -214,6 +217,14 @@ export default function CreatePackage() {
     if (!isCodeManual && planName.trim()) {
       setPlanCode(slugify(`${planName}_${nextCycle}`))
     }
+    if (String(nextCycle).toLowerCase() === "trial") {
+      setTierRank(0)
+      setPrice("0")
+      setOriginalPrice("")
+      setDiscountPercent("")
+    } else if (Number(tierRank) < 1) {
+      setTierRank(1)
+    }
   }
 
   const handleAddItem = () => {
@@ -254,14 +265,15 @@ export default function CreatePackage() {
       return
     }
 
-    const parsedPrice = parseFloat(price)
+    const isTrialCycle = String(billingCycle).toLowerCase() === "trial"
+    const parsedPrice = isTrialCycle ? 0 : parseFloat(price)
     if (isNaN(parsedPrice) || parsedPrice < 0) {
       toast.error("Please enter a valid Net Selling Price (greater than or equal to 0).")
       return
     }
 
     const parsedOriginal =
-      originalPrice.trim() !== "" ? parseFloat(originalPrice) : null
+      !isTrialCycle && originalPrice.trim() !== "" ? parseFloat(originalPrice) : null
     if (parsedOriginal !== null && (isNaN(parsedOriginal) || parsedOriginal < 0)) {
       toast.error("Please enter a valid Actual / Regular Price.")
       return
@@ -271,9 +283,9 @@ export default function CreatePackage() {
       return
     }
 
-    const parsedTierRank = Number(tierRank) || 1
-    if (parsedTierRank < 1) {
-      toast.error("Tier Rank must be 1 or greater.")
+    const parsedTierRank = isTrialCycle ? 0 : Number(tierRank)
+    if (!isTrialCycle && (!parsedTierRank || parsedTierRank < 1)) {
+      toast.error("Tier Rank must be 1 or greater for paid billing cycles.")
       return
     }
 
@@ -307,6 +319,8 @@ export default function CreatePackage() {
         free_trial_days: freeTrialDays === "" ? 0 : Number(freeTrialDays),
         max_students: Number(maxStudents) || 0,
         included_storage_gb: includedStorageGb === "" ? 0 : Math.max(0, Number(includedStorageGb)),
+        included_push_credits: includedPushCredits === "" ? 0 : Math.max(0, Number(includedPushCredits)),
+        included_sms_credits: includedSmsCredits === "" ? 0 : Math.max(0, Number(includedSmsCredits)),
         is_popular: isPopular,
         status,
         description: description.trim(),
@@ -430,19 +444,21 @@ export default function CreatePackage() {
                 <Input
                   id="tier_rank"
                   type="number"
-                  min="1"
+                  min={billingCycle === "trial" ? "0" : "1"}
                   step="1"
-                  placeholder="1"
-                  value={tierRank}
+                  placeholder={billingCycle === "trial" ? "0" : "1"}
+                  value={billingCycle === "trial" ? 0 : tierRank}
                   onChange={(e) =>
                     setTierRank(e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value, 10) || 1))
                   }
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || billingCycle === "trial"}
                   className="h-9 text-xs"
                   required
                 />
                 <span className="text-[10px] text-muted-foreground">
-                  e.g. 1 = Starter, 2 = Growth, 3 = Enterprise. Higher rank = Upgrade.
+                  {billingCycle === "trial"
+                    ? "Trial cycle is automatically locked at Tier 0."
+                    : "e.g. 1 = Starter, 2 = Growth, 3 = Enterprise. Higher rank = Upgrade."}
                 </span>
               </div>
 
@@ -456,18 +472,18 @@ export default function CreatePackage() {
                   onValueChange={(val) => {
                     if (val) handleCycleChange(val as BillingCycle)
                   }}
-                  items={BILLING_CYCLE_LABELS}
-                  itemToStringLabel={(val) => BILLING_CYCLE_LABELS[val as string] || String(val || "")}
+                  items={cycleLabels}
+                  itemToStringLabel={(val) => cycleLabels[val as string] || String(val || "")}
                   disabled={isSubmitting}
                 >
                   <SelectTrigger id="billing_cycle" className="w-full h-9 text-xs">
                     <SelectValue placeholder="Select billing cycle" />
                   </SelectTrigger>
                   <SelectContent>
-                    {BILLING_CYCLE_OPTIONS.map((cycle) => (
+                    {billingCycles.map((cycle) => (
                       <SelectItem
-                        key={cycle.value}
-                        value={cycle.value}
+                        key={cycle.code}
+                        value={cycle.code}
                         label={cycle.label}
                         className="text-xs cursor-pointer"
                       >
@@ -516,12 +532,12 @@ export default function CreatePackage() {
                       disabled={isSubmitting || billingCycle === "trial"}
                       className="h-9 text-xs bg-background"
                     />
-                    {matchingMonthlyPlan && CYCLE_MONTHS[billingCycle] > 1 ? (
+                    {matchingMonthlyPlan && currentCycleMonths > 1 ? (
                       <button
                         type="button"
                         onClick={() => {
                           const suggested = Number(
-                            (Number(matchingMonthlyPlan.price) * CYCLE_MONTHS[billingCycle]).toFixed(2)
+                            (Number(matchingMonthlyPlan.price) * currentCycleMonths).toFixed(2)
                           )
                           handleOriginalPriceChange(String(suggested))
                         }}
@@ -529,9 +545,9 @@ export default function CreatePackage() {
                       >
                         <Zap className="h-3 w-3" />
                         Fill ₹{Number(matchingMonthlyPlan.price).toLocaleString("en-IN")} ×{" "}
-                        {CYCLE_MONTHS[billingCycle]} = ₹
+                        {currentCycleMonths} = ₹
                         {Number(
-                          (Number(matchingMonthlyPlan.price) * CYCLE_MONTHS[billingCycle]).toFixed(2)
+                          (Number(matchingMonthlyPlan.price) * currentCycleMonths).toFixed(2)
                         ).toLocaleString("en-IN")}
                       </button>
                     ) : (
@@ -583,9 +599,9 @@ export default function CreatePackage() {
                       step="0.01"
                       min="0"
                       placeholder="e.g. 1500"
-                      value={price}
+                      value={billingCycle === "trial" ? "0" : price}
                       onChange={(e) => handleSellingPriceChange(e.target.value)}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || billingCycle === "trial"}
                       className="h-9 text-xs font-semibold bg-background"
                       required
                     />
@@ -634,7 +650,7 @@ export default function CreatePackage() {
                         </span>
                         {billingCycle !== "trial" && sellNum > 0 && (
                           <span className="text-xs text-muted-foreground">
-                            / {CYCLE_SHORT_SUFFIX[billingCycle]}
+                            / {currentCycleSuffix}
                           </span>
                         )}
                         {hasDiscount && (
@@ -732,6 +748,54 @@ export default function CreatePackage() {
                   Used when Billing Cycle is Free Trial (e.g. 14 or 30 days).
                 </span>
               </div>
+
+              {/* Included Push Notification Credits (Optional) */}
+              <div className="space-y-1.5">
+                <Label htmlFor="included_push_credits" className="text-xs font-semibold">
+                  Included Push Credits (Optional)
+                </Label>
+                <Input
+                  id="included_push_credits"
+                  type="number"
+                  min="0"
+                  placeholder="0 (Optional)"
+                  value={includedPushCredits}
+                  onChange={(e) =>
+                    setIncludedPushCredits(
+                      e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
+                    )
+                  }
+                  disabled={isSubmitting}
+                  className="h-9 text-xs"
+                />
+                <span className="text-[10px] text-muted-foreground">
+                  Credited automatically to school push wallet on plan activation.
+                </span>
+              </div>
+
+              {/* Included SMS Credits (Optional) */}
+              <div className="space-y-1.5">
+                <Label htmlFor="included_sms_credits" className="text-xs font-semibold">
+                  Included SMS Credits (Optional)
+                </Label>
+                <Input
+                  id="included_sms_credits"
+                  type="number"
+                  min="0"
+                  placeholder="0 (Optional)"
+                  value={includedSmsCredits}
+                  onChange={(e) =>
+                    setIncludedSmsCredits(
+                      e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
+                    )
+                  }
+                  disabled={isSubmitting}
+                  className="h-9 text-xs"
+                />
+                <span className="text-[10px] text-muted-foreground">
+                  Credited automatically to school SMS wallet on plan activation.
+                </span>
+              </div>
             </div>
 
             {/* Toggles Row: Plan Status & Most Popular */}
@@ -745,7 +809,7 @@ export default function CreatePackage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setStatus(status === 1 ? 0 : 1)}
+                  onClick={() => setStatus(status === 1 ? 2 : 1)}
                   disabled={isSubmitting}
                   className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
                     status === 1 ? "bg-emerald-500" : "bg-muted-foreground/30"

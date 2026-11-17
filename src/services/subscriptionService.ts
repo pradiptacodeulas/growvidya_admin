@@ -7,6 +7,7 @@ import type {
   CreateItemPayload,
   SchoolSubscription,
   SubscriptionsListResult,
+  AssignSubscriptionOptionsResult,
   PackagesListResult,
   PackagesListParams,
   ApproveSubscriptionPayload,
@@ -15,6 +16,125 @@ import type {
   OrderInvoiceDetails,
   SchoolLookupItem,
 } from "@/types/subscription"
+
+/**
+ * Return current YYYY-MM-DD date string in Asia/Kolkata (IST) with zero UTC offset shift
+ */
+export function getTodayDateIST(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date())
+}
+
+/**
+ * Normalize a MySQL DATE / DATETIME / ISO string into YYYY-MM-DD in Asia/Kolkata (IST)
+ */
+export function normalizeDateStrIST(dateInput?: string | Date | null): string | null {
+  if (!dateInput) return null
+  if (typeof dateInput === "string") {
+    const trimmed = dateInput.trim()
+    const directMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s|$)/)
+    if (directMatch) {
+      return `${directMatch[1]}-${directMatch[2]}-${directMatch[3]}`
+    }
+  }
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput)
+  if (isNaN(d.getTime())) return typeof dateInput === "string" ? dateInput : null
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d)
+}
+
+/**
+ * Compute end date dynamically from billing_cycle_master metadata (duration_type & duration_value)
+ * and plan free_trial_days using pure integer calendar math (zero hardcoded cycles or trial days).
+ */
+export function computeDynamicCycleEndDate(
+  startStr: string,
+  cycleMeta?: {
+    code?: string
+    duration_type?: string
+    duration_value?: number
+    months?: number
+  } | null,
+  freeTrialDays?: number | null
+): string {
+  const cleanStart = normalizeDateStrIST(startStr) || getTodayDateIST()
+  const match = cleanStart.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return cleanStart
+
+  const year = parseInt(match[1], 10)
+  const month = parseInt(match[2], 10)
+  const day = parseInt(match[3], 10)
+
+  const code = String(cycleMeta?.code || "").toLowerCase()
+  const durType = String(
+    cycleMeta?.duration_type || (code === "trial" ? "days" : "months")
+  ).toLowerCase()
+
+  if (durType === "days" || code === "trial") {
+    const customDays = Number(freeTrialDays)
+    const daysToAdd =
+      !isNaN(customDays) && customDays > 0
+        ? Math.floor(customDays)
+        : Math.max(0, Number(cycleMeta?.duration_value) || 0)
+    const utc = new Date(Date.UTC(year, month - 1, day))
+    utc.setUTCDate(utc.getUTCDate() + daysToAdd)
+    return utc.toISOString().slice(0, 10)
+  }
+
+  const monthsToAdd = Math.max(
+    0,
+    Number(cycleMeta?.duration_value ?? cycleMeta?.months) || 0
+  )
+  const totalMonths = year * 12 + (month - 1) + monthsToAdd
+  const targetYear = Math.floor(totalMonths / 12)
+  const targetMonthIndex = totalMonths % 12
+  const maxDayInTargetMonth = new Date(Date.UTC(targetYear, targetMonthIndex + 1, 0)).getUTCDate()
+  const targetDay = Math.min(day, maxDayInTargetMonth)
+
+  const y = String(targetYear).padStart(4, "0")
+  const m = String(targetMonthIndex + 1).padStart(2, "0")
+  const dStr = String(targetDay).padStart(2, "0")
+  return `${y}-${m}-${dStr}`
+}
+
+/**
+ * Format billing cycle label dynamically from cycle_meta without static hardcoded switch statements
+ */
+export function formatDynamicCycleLabel(
+  cycle?: string | null,
+  cycleMeta?: { label?: string; short_label?: string; shortLabel?: string } | null
+): string {
+  if (cycleMeta?.label) return cycleMeta.label
+  if (cycleMeta?.short_label) return cycleMeta.short_label
+  if (cycleMeta?.shortLabel) return cycleMeta.shortLabel
+  if (!cycle) return "—"
+  return cycle
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (ch) => ch.toUpperCase())
+}
+
+/**
+ * Compute exact calendar days remaining in IST relative to today
+ */
+export function getDaysRemainingIST(endDateStr?: string | null): number | null {
+  const cleanEnd = normalizeDateStrIST(endDateStr)
+  if (!cleanEnd) return null
+  const cleanToday = getTodayDateIST()
+  const [ey, em, ed] = cleanEnd.split("-").map(Number)
+  const [ty, tm, td] = cleanToday.split("-").map(Number)
+  if (!ey || !ty) return null
+  const endUtc = Date.UTC(ey, em - 1, ed)
+  const todayUtc = Date.UTC(ty, tm - 1, td)
+  return Math.round((endUtc - todayUtc) / (1000 * 60 * 60 * 24))
+}
 
 function getAuthHeaders(token?: string | null): Record<string, string> {
   const headers: Record<string, string> = {
@@ -159,12 +279,12 @@ export async function deletePackageApi(
 }
 
 /**
- * Toggle package status (1 = Active, 0 = Inactive)
+ * Toggle package status (1 = Active, 2 = Inactive)
  */
 export async function togglePackageStatusApi(
   token: string,
   id: number,
-  status: 0 | 1
+  status: 1 | 2
 ): Promise<{ success: boolean; message: string }> {
   const response = await fetch(`${API_BASE_URL}/packages/${id}/status`, {
     method: "PATCH",
@@ -264,12 +384,12 @@ export async function deleteItemApi(
 }
 
 /**
- * Toggle child item status (1 = Active, 0 = Inactive)
+ * Toggle child item status (1 = Active, 2 = Inactive)
  */
 export async function toggleItemStatusApi(
   token: string,
   itemId: number,
-  status: 0 | 1
+  status: 1 | 2
 ): Promise<{ success: boolean; message: string }> {
   const response = await fetch(`${API_BASE_URL}/packages/items/${itemId}/status`, {
     method: "PATCH",
@@ -307,22 +427,34 @@ export async function fetchPublicPlansApi(): Promise<SubscriptionPackage[]> {
 }
 
 /**
+ * Fetch schools, active packages, and billing cycles for Manual Plan Assignment
+ * Accessible to admins with subscriptions OR schools permissions (avoids 403 on /packages or /schools)
+ */
+export async function fetchAssignSubscriptionOptionsApi(
+  token: string,
+  search = ""
+): Promise<AssignSubscriptionOptionsResult> {
+  const query = new URLSearchParams()
+  if (search.trim()) query.set("search", search.trim())
+  const qs = query.toString() ? `?${query.toString()}` : ""
+  const response = await fetch(`${API_BASE_URL}/subscriptions/assign-options${qs}`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  })
+  return handleResponse<AssignSubscriptionOptionsResult>(
+    response,
+    "Failed to retrieve manual assignment options."
+  )
+}
+
+/**
  * Fetch schools lookup for Manual Plan Assignment
  */
 export async function fetchSchoolsLookupApi(
   token: string,
   search = ""
 ): Promise<SchoolLookupItem[]> {
-  const query = new URLSearchParams({ limit: "100" })
-  if (search.trim()) query.set("search", search.trim())
-  const response = await fetch(`${API_BASE_URL}/schools?${query.toString()}`, {
-    method: "GET",
-    headers: getAuthHeaders(token),
-  })
-  const res = await handleResponse<{ schools: SchoolLookupItem[] }>(
-    response,
-    "Failed to retrieve schools list."
-  )
+  const res = await fetchAssignSubscriptionOptionsApi(token, search)
   return res?.schools || []
 }
 
@@ -511,6 +643,42 @@ export async function updateSubscriptionStatusApi(
     response,
     "Failed to update subscription status."
   )
+}
+
+/**
+ * Super Admin: Verify & Approve an Offline UTR Payment Order (activates digital entitlements & approves pending hardware)
+ */
+export async function approvePaymentOrderApi(
+  token: string,
+  orderId: number,
+  verificationNotes?: string
+): Promise<unknown> {
+  const response = await fetch(`${API_BASE_URL}/payment-orders/${orderId}/approve`, {
+    method: "POST",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify({
+      verification_notes: verificationNotes || "Offline UTR payment order verified by Super Admin",
+    }),
+  })
+  return handleResponse<unknown>(response, "Failed to verify and approve payment order.")
+}
+
+/**
+ * Super Admin: Reject an Offline UTR Payment Order
+ */
+export async function rejectPaymentOrderApi(
+  token: string,
+  orderId: number,
+  rejectionReason?: string
+): Promise<unknown> {
+  const response = await fetch(`${API_BASE_URL}/payment-orders/${orderId}/reject`, {
+    method: "POST",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify({
+      rejection_reason: rejectionReason || "Offline UTR payment order rejected by Super Admin",
+    }),
+  })
+  return handleResponse<unknown>(response, "Failed to reject payment order.")
 }
 
 export interface DashboardStatsResponse {

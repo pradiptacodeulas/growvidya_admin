@@ -19,22 +19,10 @@ async function makeRequest(
     headers.set("Authorization", `Bearer ${token}`)
   }
 
-  // 1. Try standard saas-admin endpoint
-  let response = await fetch(`${API_BASE_URL}${endpointPath}`, {
+  return fetch(`${API_BASE_URL}${endpointPath}`, {
     ...options,
     headers,
   })
-
-  // 2. If 404, fallback to /api/v1/bank-accounts
-  if (response.status === 404) {
-    const rootBaseUrl = API_BASE_URL.replace(/\/saas-admin\/?$/, "")
-    response = await fetch(`${rootBaseUrl}${endpointPath}`, {
-      ...options,
-      headers,
-    })
-  }
-
-  return response
 }
 
 async function handleResponse<T>(response: Response, defaultErrorMessage: string): Promise<T> {
@@ -70,7 +58,7 @@ export async function fetchBankAccountsApi(
   }
   if (params?.status !== undefined && params.status !== "all" && params.status !== "") {
     const statusVal =
-      params.status === "active" ? "1" : params.status === "inactive" ? "0" : String(params.status)
+      params.status === "active" ? "1" : params.status === "inactive" ? "2" : String(params.status)
     query.append("status", statusVal)
   }
 
@@ -94,9 +82,12 @@ function buildRequestBody(payload: CreateBankAccountPayload | UpdateBankAccountP
     Object.entries(payload).forEach(([key, value]) => {
       if (key === "qr_code_file") {
         fd.append("qr_code_image", value as File)
+      } else if (key === "qr_code_image") {
+        // Skip string qr_code_image when uploading a new File under qr_code_image
+        return
       } else if (value !== undefined && value !== null) {
         if (typeof value === "boolean") {
-          fd.append(key, value ? "1" : "0")
+          fd.append(key, value ? "1" : key === "status" ? "2" : "0")
         } else {
           fd.append(key, String(value))
         }
@@ -107,6 +98,7 @@ function buildRequestBody(payload: CreateBankAccountPayload | UpdateBankAccountP
 
   const cleanPayload = { ...payload }
   delete cleanPayload.qr_code_file
+  if (typeof cleanPayload.status === "boolean") cleanPayload.status = cleanPayload.status ? 1 : 2
   return JSON.stringify(cleanPayload)
 }
 
@@ -172,7 +164,7 @@ export async function toggleBankAccountStatusApi(
   id: number | string,
   status?: number | boolean
 ): Promise<BankAccount> {
-  const body = status !== undefined ? JSON.stringify({ status: status ? 1 : 0 }) : "{}"
+  const body = status !== undefined ? JSON.stringify({ status: typeof status === "boolean" ? (status ? 1 : 2) : Number(status) }) : "{}"
   const response = await makeRequest(
     `/bank-accounts/${id}/status`,
     {

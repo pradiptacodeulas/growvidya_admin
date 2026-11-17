@@ -181,7 +181,7 @@ export default function SubAdmins() {
     setPhoneNumber(user.phone_number || "")
     setGenderId(user.gender_id ? String(user.gender_id) : user.gender ? String(user.gender) : "")
     setRoleId(user.role_id ? String(user.role_id) : "")
-    setStatusVal(Number(user.status) === 0 ? 0 : 1)
+    setStatusVal(Number(user.status) === 2 ? 2 : 1)
     setProfileFile(null)
     setIsFormOpen(true)
   }
@@ -267,7 +267,7 @@ export default function SubAdmins() {
 
   const handleToggleStatus = async (user: SubAdminUser) => {
     if (!token) return
-    const nextStatus = Number(user.status) === 1 ? 0 : 1
+    const nextStatus = Number(user.status) === 1 ? 2 : 1
     try {
       await toggleSubAdminStatusApi(token, user.id, nextStatus)
       toast.success(
@@ -307,7 +307,7 @@ export default function SubAdmins() {
   }
 
   const activeCount = subAdmins.filter((u) => Number(u.status) === 1).length
-  const inactiveCount = subAdmins.filter((u) => Number(u.status) === 0).length
+  const inactiveCount = subAdmins.filter((u) => Number(u.status) === 2).length
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
@@ -457,7 +457,7 @@ export default function SubAdmins() {
             </select>
 
             <div className="flex items-center gap-1.5">
-              {(["all", "1", "0"] as const).map((tab) => (
+              {(["all", "1", "2"] as const).map((tab) => (
                 <Button
                   key={tab}
                   variant={selectedStatusFilter === tab ? "default" : "outline"}
@@ -776,7 +776,7 @@ export default function SubAdmins() {
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <option value={1}>Active</option>
-                <option value={0}>Inactive</option>
+                <option value={2}>Inactive</option>
               </select>
             </div>
 

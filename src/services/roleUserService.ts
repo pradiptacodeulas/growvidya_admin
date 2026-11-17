@@ -1,4 +1,4 @@
-import { API_BASE_URL, SERVER_BASE_URL } from "@/config/api"
+import { API_BASE_URL, getFullImageUrl } from "@/config/api"
 import type {
   SaasModule,
   SaasRole,
@@ -46,14 +46,7 @@ async function handleResponse<T>(res: Response, fallbackMessage: string): Promis
 }
 
 export function resolveSubAdminImageUrl(imagePath?: string | null): string | null {
-  if (!imagePath) return null
-  const trimmed = String(imagePath).trim()
-  if (!trimmed) return null
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("data:")) {
-    return trimmed
-  }
-  const normalizedPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`
-  return `${SERVER_BASE_URL}${normalizedPath}`
+  return getFullImageUrl(imagePath)
 }
 
 // ========================================================

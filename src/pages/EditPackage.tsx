@@ -7,7 +7,7 @@ import {
   fetchPackagesApi,
   updatePackageApi,
 } from "@/services/subscriptionService"
-import type { BillingCycle, SubscriptionPackage } from "@/types/subscription"
+import type { BillingCycle, BillingCycleMeta, SubscriptionPackage } from "@/types/subscription"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -54,42 +54,10 @@ import {
   X,
 } from "lucide-react"
 
-const CYCLE_MONTHS: Record<BillingCycle, number> = {
-  monthly: 1,
-  quarterly: 3,
-  half_yearly: 6,
-  annual: 12,
-  trial: 0,
-}
-
-const CYCLE_SHORT_SUFFIX: Record<BillingCycle, string> = {
-  monthly: "month",
-  quarterly: "quarter",
-  half_yearly: "6 months",
-  annual: "year",
-  trial: "trial",
-}
-
 function formatCleanPercent(orig: number, sell: number): string {
   if (!(orig > 0) || isNaN(sell) || sell < 0 || orig <= sell) return ""
   const pct = ((orig - sell) / orig) * 100
   return Number(pct.toFixed(2)).toString()
-}
-
-const BILLING_CYCLE_OPTIONS: { value: BillingCycle; label: string }[] = [
-  { value: "monthly", label: "Monthly (1 Month)" },
-  { value: "quarterly", label: "Quarterly (3 Months)" },
-  { value: "half_yearly", label: "Half-Yearly (6 Months)" },
-  { value: "annual", label: "Annually (12 Months)" },
-  { value: "trial", label: "Free Trial" },
-]
-
-const BILLING_CYCLE_LABELS: Record<string, string> = {
-  monthly: "Monthly (1 Month)",
-  quarterly: "Quarterly (3 Months)",
-  half_yearly: "Half-Yearly (6 Months)",
-  annual: "Annually (12 Months)",
-  trial: "Free Trial",
 }
 
 interface PlanFeatureItem {
@@ -119,13 +87,16 @@ export default function EditPackage() {
   const [originalPrice, setOriginalPrice] = useState("")
   const [discountPercent, setDiscountPercent] = useState("")
   const [price, setPrice] = useState("")
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>("annual")
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("")
+  const [billingCycles, setBillingCycles] = useState<BillingCycleMeta[]>([])
   const [existingPackages, setExistingPackages] = useState<SubscriptionPackage[]>([])
   const [freeTrialDays, setFreeTrialDays] = useState<number | "">("")
   const [maxStudents, setMaxStudents] = useState<number | "">("")
   const [includedStorageGb, setIncludedStorageGb] = useState<number | "">("")
+  const [includedPushCredits, setIncludedPushCredits] = useState<number | "">("")
+  const [includedSmsCredits, setIncludedSmsCredits] = useState<number | "">("")
   const [isPopular, setIsPopular] = useState<1 | 0>(0)
-  const [status, setStatus] = useState<1 | 0>(1)
+  const [status, setStatus] = useState<1 | 2>(1)
   const [description, setDescription] = useState("")
   const [items, setItems] = useState<PlanFeatureItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -133,7 +104,10 @@ export default function EditPackage() {
   useEffect(() => {
     if (!token) return
     fetchPackagesApi(token, { limit: 100 })
-      .then((res) => setExistingPackages(res?.packages ?? []))
+      .then((res) => {
+        setExistingPackages(res?.packages ?? [])
+        setBillingCycles(res?.meta?.billing_cycles ?? [])
+      })
       .catch(() => {})
   }, [token])
 
@@ -145,13 +119,23 @@ export default function EditPackage() {
       .then((pkg) => {
         setPlanName(pkg.plan_name || "")
         setPlanCode(pkg.plan_code || "")
-        setTierRank(pkg.tier_rank !== undefined && pkg.tier_rank !== null ? Number(pkg.tier_rank) : 1)
-        const sellNum = Number(pkg.price ?? 0)
+        const isLoadedTrial = String(pkg.billing_cycle || "").toLowerCase() === "trial"
+        setTierRank(
+          isLoadedTrial
+            ? 0
+            : pkg.tier_rank !== undefined && pkg.tier_rank !== null
+              ? Number(pkg.tier_rank)
+              : 1
+        )
+        const sellNum = isLoadedTrial ? 0 : Number(pkg.price ?? 0)
         const origNum =
-          pkg.original_price !== null && pkg.original_price !== undefined && pkg.original_price !== ""
+          !isLoadedTrial &&
+          pkg.original_price !== null &&
+          pkg.original_price !== undefined &&
+          pkg.original_price !== ""
             ? Number(pkg.original_price)
             : 0
-        setPrice(String(pkg.price ?? 0))
+        setPrice(isLoadedTrial ? "0" : String(pkg.price ?? 0))
         if (origNum > sellNum) {
           setOriginalPrice(String(origNum))
           setDiscountPercent(formatCleanPercent(origNum, sellNum))
@@ -159,7 +143,7 @@ export default function EditPackage() {
           setOriginalPrice("")
           setDiscountPercent("")
         }
-        setBillingCycle(pkg.billing_cycle || "annual")
+        setBillingCycle(pkg.billing_cycle || "")
         setFreeTrialDays(
           pkg.free_trial_days !== undefined && pkg.free_trial_days !== null
             ? pkg.free_trial_days
@@ -175,6 +159,20 @@ export default function EditPackage() {
             pkg.included_storage_gb !== null &&
             Number(pkg.included_storage_gb) > 0
             ? Number(pkg.included_storage_gb)
+            : ""
+        )
+        setIncludedPushCredits(
+          pkg.included_push_credits !== undefined &&
+            pkg.included_push_credits !== null &&
+            Number(pkg.included_push_credits) > 0
+            ? Number(pkg.included_push_credits)
+            : ""
+        )
+        setIncludedSmsCredits(
+          pkg.included_sms_credits !== undefined &&
+            pkg.included_sms_credits !== null &&
+            Number(pkg.included_sms_credits) > 0
+            ? Number(pkg.included_sms_credits)
             : ""
         )
         setIsPopular(Number(pkg.is_popular) === 1 ? 1 : 0)
@@ -199,6 +197,27 @@ export default function EditPackage() {
       })
   }, [token, id])
 
+  const cycleLabels = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const c of billingCycles) {
+      map[c.code] = c.label
+    }
+    if (billingCycle && !map[billingCycle]) {
+      map[billingCycle] = billingCycle
+    }
+    return map
+  }, [billingCycles, billingCycle])
+
+  const currentCycleMeta = useMemo(
+    () => billingCycles.find((c) => c.code === billingCycle) || null,
+    [billingCycles, billingCycle]
+  )
+  const currentCycleMonths = currentCycleMeta?.months ?? 0
+  const currentCycleSuffix =
+    (currentCycleMeta?.suffix || "").replace(/^\//, "").trim() ||
+    currentCycleMeta?.short_label ||
+    billingCycle
+
   const effectiveBaseSlug = useMemo(() => {
     return slugify(
       planName.replace(/\b(plan|package|monthly|quarterly|half[\s_-]*yearly|annual|yearly|trial)\b/gi, "")
@@ -206,7 +225,7 @@ export default function EditPackage() {
   }, [planName])
 
   const matchingMonthlyPlan = useMemo(() => {
-    if (CYCLE_MONTHS[billingCycle] <= 1) return null
+    if (currentCycleMonths <= 1) return null
     const parsedRank = Number(tierRank)
     return (
       existingPackages.find((p) => {
@@ -219,7 +238,7 @@ export default function EditPackage() {
         return parsedRank >= 1 && Number(p.tier_rank) === parsedRank
       }) || null
     )
-  }, [existingPackages, effectiveBaseSlug, tierRank, billingCycle, id])
+  }, [existingPackages, effectiveBaseSlug, tierRank, currentCycleMonths, id])
 
   const handleOriginalPriceChange = (val: string) => {
     setOriginalPrice(val)
@@ -299,14 +318,15 @@ export default function EditPackage() {
       return
     }
 
-    const parsedPrice = parseFloat(price)
+    const isTrialCycle = String(billingCycle).toLowerCase() === "trial"
+    const parsedPrice = isTrialCycle ? 0 : parseFloat(price)
     if (isNaN(parsedPrice) || parsedPrice < 0) {
       toast.error("Please enter a valid Net Selling Price (greater than or equal to 0).")
       return
     }
 
     const parsedOriginal =
-      originalPrice.trim() !== "" ? parseFloat(originalPrice) : null
+      !isTrialCycle && originalPrice.trim() !== "" ? parseFloat(originalPrice) : null
     if (parsedOriginal !== null && (isNaN(parsedOriginal) || parsedOriginal < 0)) {
       toast.error("Please enter a valid Actual / Regular Price.")
       return
@@ -316,9 +336,9 @@ export default function EditPackage() {
       return
     }
 
-    const parsedTierRank = Number(tierRank) || 1
-    if (parsedTierRank < 1) {
-      toast.error("Tier Rank must be 1 or greater.")
+    const parsedTierRank = isTrialCycle ? 0 : Number(tierRank)
+    if (!isTrialCycle && (!parsedTierRank || parsedTierRank < 1)) {
+      toast.error("Tier Rank must be 1 or greater for paid billing cycles.")
       return
     }
 
@@ -353,6 +373,8 @@ export default function EditPackage() {
         free_trial_days: freeTrialDays === "" ? 0 : Number(freeTrialDays),
         max_students: Number(maxStudents) || 0,
         included_storage_gb: includedStorageGb === "" ? 0 : Math.max(0, Number(includedStorageGb)),
+        included_push_credits: includedPushCredits === "" ? 0 : Math.max(0, Number(includedPushCredits)),
+        included_sms_credits: includedSmsCredits === "" ? 0 : Math.max(0, Number(includedSmsCredits)),
         is_popular: isPopular,
         status,
         description: description.trim(),
@@ -486,19 +508,21 @@ export default function EditPackage() {
                   <Input
                     id="tier_rank"
                     type="number"
-                    min="1"
+                    min={billingCycle === "trial" ? "0" : "1"}
                     step="1"
-                    placeholder="1"
-                    value={tierRank}
+                    placeholder={billingCycle === "trial" ? "0" : "1"}
+                    value={billingCycle === "trial" ? 0 : tierRank}
                     onChange={(e) =>
                       setTierRank(e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value, 10) || 1))
                     }
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || billingCycle === "trial"}
                     className="h-9 text-xs"
                     required
                   />
                   <span className="text-[10px] text-muted-foreground">
-                    e.g. 1 = Starter, 2 = Growth, 3 = Enterprise. Higher rank = Upgrade.
+                    {billingCycle === "trial"
+                      ? "Trial cycle is automatically locked at Tier 0."
+                      : "e.g. 1 = Starter, 2 = Growth, 3 = Enterprise. Higher rank = Upgrade."}
                   </span>
                 </div>
 
@@ -510,20 +534,30 @@ export default function EditPackage() {
                   <Select
                     value={billingCycle}
                     onValueChange={(val) => {
-                      if (val) setBillingCycle(val as BillingCycle)
+                      if (!val) return
+                      const next = val as BillingCycle
+                      setBillingCycle(next)
+                      if (String(next).toLowerCase() === "trial") {
+                        setTierRank(0)
+                        setPrice("0")
+                        setOriginalPrice("")
+                        setDiscountPercent("")
+                      } else if (Number(tierRank) < 1) {
+                        setTierRank(1)
+                      }
                     }}
-                    items={BILLING_CYCLE_LABELS}
-                    itemToStringLabel={(val) => BILLING_CYCLE_LABELS[val as string] || String(val || "")}
+                    items={cycleLabels}
+                    itemToStringLabel={(val) => cycleLabels[val as string] || String(val || "")}
                     disabled={isSubmitting}
                   >
                     <SelectTrigger id="billing_cycle" className="w-full h-9 text-xs">
                       <SelectValue placeholder="Select billing cycle" />
                     </SelectTrigger>
                     <SelectContent>
-                      {BILLING_CYCLE_OPTIONS.map((cycle) => (
+                      {billingCycles.map((cycle) => (
                         <SelectItem
-                          key={cycle.value}
-                          value={cycle.value}
+                          key={cycle.code}
+                          value={cycle.code}
                           label={cycle.label}
                           className="text-xs cursor-pointer"
                         >
@@ -572,12 +606,12 @@ export default function EditPackage() {
                         disabled={isSubmitting || billingCycle === "trial"}
                         className="h-9 text-xs bg-background"
                       />
-                      {matchingMonthlyPlan && CYCLE_MONTHS[billingCycle] > 1 ? (
+                      {matchingMonthlyPlan && currentCycleMonths > 1 ? (
                         <button
                           type="button"
                           onClick={() => {
                             const suggested = Number(
-                              (Number(matchingMonthlyPlan.price) * CYCLE_MONTHS[billingCycle]).toFixed(2)
+                              (Number(matchingMonthlyPlan.price) * currentCycleMonths).toFixed(2)
                             )
                             handleOriginalPriceChange(String(suggested))
                           }}
@@ -585,9 +619,9 @@ export default function EditPackage() {
                         >
                           <Zap className="h-3 w-3" />
                           Fill ₹{Number(matchingMonthlyPlan.price).toLocaleString("en-IN")} ×{" "}
-                          {CYCLE_MONTHS[billingCycle]} = ₹
+                          {currentCycleMonths} = ₹
                           {Number(
-                            (Number(matchingMonthlyPlan.price) * CYCLE_MONTHS[billingCycle]).toFixed(2)
+                            (Number(matchingMonthlyPlan.price) * currentCycleMonths).toFixed(2)
                           ).toLocaleString("en-IN")}
                         </button>
                       ) : (
@@ -639,9 +673,9 @@ export default function EditPackage() {
                         step="0.01"
                         min="0"
                         placeholder="e.g. 1500"
-                        value={price}
+                        value={billingCycle === "trial" ? "0" : price}
                         onChange={(e) => handleSellingPriceChange(e.target.value)}
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || billingCycle === "trial"}
                         className="h-9 text-xs font-semibold bg-background"
                         required
                       />
@@ -690,7 +724,7 @@ export default function EditPackage() {
                           </span>
                           {billingCycle !== "trial" && sellNum > 0 && (
                             <span className="text-xs text-muted-foreground">
-                              / {CYCLE_SHORT_SUFFIX[billingCycle]}
+                              / {currentCycleSuffix}
                             </span>
                           )}
                           {hasDiscount && (
@@ -788,6 +822,54 @@ export default function EditPackage() {
                     Number of free trial days (0 for paid plans, or e.g. 14, 30).
                   </span>
                 </div>
+
+                {/* Included Push Notification Credits (Optional) */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="included_push_credits" className="text-xs font-semibold">
+                    Included Push Credits (Optional)
+                  </Label>
+                  <Input
+                    id="included_push_credits"
+                    type="number"
+                    min="0"
+                    placeholder="0 (Optional)"
+                    value={includedPushCredits}
+                    onChange={(e) =>
+                      setIncludedPushCredits(
+                        e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
+                      )
+                    }
+                    disabled={isSubmitting}
+                    className="h-9 text-xs"
+                  />
+                  <span className="text-[10px] text-muted-foreground">
+                    Credited automatically to school push wallet on plan activation.
+                  </span>
+                </div>
+
+                {/* Included SMS Credits (Optional) */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="included_sms_credits" className="text-xs font-semibold">
+                    Included SMS Credits (Optional)
+                  </Label>
+                  <Input
+                    id="included_sms_credits"
+                    type="number"
+                    min="0"
+                    placeholder="0 (Optional)"
+                    value={includedSmsCredits}
+                    onChange={(e) =>
+                      setIncludedSmsCredits(
+                        e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
+                      )
+                    }
+                    disabled={isSubmitting}
+                    className="h-9 text-xs"
+                  />
+                  <span className="text-[10px] text-muted-foreground">
+                    Credited automatically to school SMS wallet on plan activation.
+                  </span>
+                </div>
               </div>
 
               {/* Toggles Row: Plan Status & Most Popular */}
@@ -801,7 +883,7 @@ export default function EditPackage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setStatus(status === 1 ? 0 : 1)}
+                    onClick={() => setStatus(status === 1 ? 2 : 1)}
                     disabled={isSubmitting}
                     className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
                       status === 1 ? "bg-emerald-500" : "bg-muted-foreground/30"

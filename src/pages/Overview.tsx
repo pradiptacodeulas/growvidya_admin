@@ -277,6 +277,12 @@ export default function Overview() {
       color: "#0ea5e9",
       displayValue: formatCurrency(stats?.revenueSummary?.storageRevenue || 0),
     },
+    {
+      label: "Notification Credits",
+      value: stats?.revenueSummary?.notificationRevenue || 0,
+      color: "#f59e0b",
+      displayValue: formatCurrency(stats?.revenueSummary?.notificationRevenue || 0),
+    },
   ]
 
   const subscriptionStatusSlices: DonutSlice[] = [
@@ -309,7 +315,8 @@ export default function Overview() {
   const totalAddonOrders =
     (stats?.addonBuyers?.storage?.totalOrders || 0) +
     (stats?.addonBuyers?.attendanceMachines?.totalOrders || 0) +
-    (stats?.addonBuyers?.rfidCards?.totalOrders || 0)
+    (stats?.addonBuyers?.rfidCards?.totalOrders || 0) +
+    ((stats?.addonBuyers as Record<string, { totalOrders?: number }> | undefined)?.notifications?.totalOrders || 0)
 
   return (
     <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
