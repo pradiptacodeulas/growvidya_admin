@@ -764,6 +764,31 @@ function AppRoutes() {
 }
 
 export default function App() {
+  useEffect(() => {
+    const handleNumberInputWheel = (event: WheelEvent) => {
+      const target = event.target
+      if (
+        target instanceof HTMLInputElement &&
+        target.type === "number" &&
+        document.activeElement === target
+      ) {
+        event.preventDefault()
+        target.blur()
+      }
+    }
+
+    document.addEventListener("wheel", handleNumberInputWheel, {
+      capture: true,
+      passive: false,
+    })
+
+    return () => {
+      document.removeEventListener("wheel", handleNumberInputWheel, {
+        capture: true,
+      })
+    }
+  }, [])
+
   return (
     <Provider store={store}>
       <TooltipProvider>
