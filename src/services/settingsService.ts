@@ -11,6 +11,8 @@ import type {
   NotificationBuyerCounts,
   NotificationLedgerEntry,
   PendingNotificationOrder,
+  FooterSetting,
+  UpdateFooterSettingPayload,
 } from "@/types/settings"
 import type { PaginationMeta } from "@/types/pagination"
 
@@ -465,5 +467,41 @@ export async function fetchNotificationBuyerLedgerApi(
   return handleResponse<NotificationLedgerEntry[]>(
     response,
     "Failed to fetch notification wallet ledger"
+  )
+}
+
+// ==========================================
+// 4. PLATFORM FOOTER CONFIGURATION API
+// ==========================================
+
+export async function fetchFooterSettingApi(
+  token: string
+): Promise<FooterSetting | null> {
+  const response = await makeRequest(
+    "/settings/footer",
+    { method: "GET" },
+    token
+  )
+  return handleResponse<FooterSetting | null>(
+    response,
+    "Failed to fetch footer setting"
+  )
+}
+
+export async function updateFooterSettingApi(
+  token: string,
+  payload: UpdateFooterSettingPayload
+): Promise<FooterSetting> {
+  const response = await makeRequest(
+    "/settings/footer",
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+    token
+  )
+  return handleResponse<FooterSetting>(
+    response,
+    "Failed to update footer setting"
   )
 }

@@ -6,6 +6,7 @@ import { fetchAdminProfile } from "@/store/authSlice"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AppSidebar } from "@/components/AppSidebar"
+import { AppFooter } from "@/components/AppFooter"
 import { ProfileDropdown } from "@/components/ProfileDropdown"
 import { NotificationDropdown } from "@/components/NotificationDropdown"
 import { RoutePermissionGuard } from "@/components/PermissionGuard"
@@ -58,6 +59,7 @@ import SupportTickets from "@/pages/SupportTickets"
 import SupportTicketDetails from "@/pages/SupportTicketDetails"
 import PaymentGatewaySettings from "@/pages/PaymentGatewaySettings"
 import EmailDeliverySettings from "@/pages/EmailDeliverySettings"
+import FooterSettings from "@/pages/FooterSettings"
 import Profile from "@/pages/Profile"
 import EditProfile from "@/pages/EditProfile"
 import { Toaster } from "@/components/ui/sonner"
@@ -113,6 +115,9 @@ function SettingsRedirect() {
   }
   if (can("email_delivery", "can_view") || can("email_settings", "can_view")) {
     return <Navigate to="/settings/email-delivery" replace />
+  }
+  if (can(["footer_settings", "payment_gateway", "email_delivery", "email_settings"], "can_view")) {
+    return <Navigate to="/settings/footer" replace />
   }
   return <Navigate to={getFirstAccessibleRoute()} replace />
 }
@@ -283,6 +288,8 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
       case "/settings/smtp":
       case "/settings/email-smtp":
         return "Settings — Email Delivery"
+      case "/settings/footer":
+        return "Settings — Footer Configuration"
       default:
         return "Dashboard"
     }
@@ -310,6 +317,7 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
           <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background min-w-0">
             {children}
           </main>
+          <AppFooter />
         </SidebarInset>
       </div>
     </SidebarProvider>
@@ -753,6 +761,17 @@ function AppRoutes() {
                 <Route path="/settings/email" element={<Navigate to="/settings/email-delivery" replace />} />
                 <Route path="/settings/smtp" element={<Navigate to="/settings/email-delivery" replace />} />
                 <Route path="/settings/email-smtp" element={<Navigate to="/settings/email-delivery" replace />} />
+                <Route
+                  path="/settings/footer"
+                  element={
+                    <RoutePermissionGuard
+                      module={["footer_settings", "payment_gateway", "email_delivery", "email_settings"]}
+                      action="can_view"
+                    >
+                      <FooterSettings />
+                    </RoutePermissionGuard>
+                  }
+                />
                 <Route path="*" element={<DefaultRouteRedirect />} />
               </Routes>
             </DashboardLayout>

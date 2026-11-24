@@ -162,3 +162,15 @@ export interface NotificationLedgerEntry {
   reference_note?: string | null
   created_at: string
 }
+
+export interface FooterSetting {
+  id: number
+  footer_text: string
+  updated_by?: number | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface UpdateFooterSettingPayload {
+  footer_text: string
+}

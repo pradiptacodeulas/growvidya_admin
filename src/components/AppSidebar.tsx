@@ -35,6 +35,7 @@ import {
   ShoppingBag,
   Headset,
   Bell,
+  PanelBottom,
 } from "lucide-react"
 import { Link, useLocation } from "react-router"
 import { useState, useEffect } from "react"
@@ -94,13 +95,14 @@ export function AppSidebar() {
   const canViewNotificationBuyers = can(["subscriptions", "schools", "packages", "email_delivery"], "can_view")
   const canViewPaymentGateway = can("payment_gateway", "can_view")
   const canViewEmailDelivery = can("email_delivery", "can_view") || can("email_settings", "can_view")
+  const canViewFooterSettings = can(["footer_settings", "payment_gateway", "email_delivery", "email_settings"], "can_view")
 
   const canViewAnySubscriptionSubItem = canViewSubscriptions || canViewPackages
   const canViewAnyMachineSubItem = canViewAttendanceMachines || canViewMachinesBuyers
   const canViewAnyRfidSubItem = canViewRfidCards || canViewRfidBuyers
   const canViewAnyStorageSubItem = canViewStoragePlans || canViewStorageBuyers
   const canViewAnyNotificationSubItem = canViewNotifications || canViewNotificationBuyers
-  const canViewAnySettingsSubItem = canViewPaymentGateway || canViewEmailDelivery
+  const canViewAnySettingsSubItem = canViewPaymentGateway || canViewEmailDelivery || canViewFooterSettings
 
   const visibleNavItems = navItems.filter((item) => can(item.moduleKey, "can_view"))
 
@@ -183,6 +185,7 @@ export function AppSidebar() {
     location.pathname.startsWith("/settings/email-delivery") ||
     location.pathname.startsWith("/settings/email") ||
     location.pathname.startsWith("/settings/smtp")
+  const isFooterSettingsActive = location.pathname.startsWith("/settings/footer")
   const isSettingsParentActive = !isSettingsOpen && isSettingsRoute
 
   const [isDark, setIsDark] = useState(() => {
@@ -589,6 +592,19 @@ export function AppSidebar() {
                           >
                             <Mail className="size-3.5 shrink-0 text-primary" />
                             <span>Email Delivery</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      )}
+
+                      {canViewFooterSettings && (
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            isActive={isFooterSettingsActive}
+                            className="text-[13px] gap-2.5 h-8 font-medium cursor-pointer"
+                            render={<Link to="/settings/footer" />}
+                          >
+                            <PanelBottom className="size-3.5 shrink-0 text-primary" />
+                            <span>Footer Configuration</span>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )}
