@@ -7,6 +7,7 @@ import {
   approveSubscriptionApi,
   rejectSubscriptionApi,
   updateSubscriptionStatusApi,
+  openSubscriptionInvoicePdfInNewTab,
   getTodayDateIST,
   computeDynamicCycleEndDate,
   formatDynamicCycleLabel,
@@ -130,8 +131,9 @@ export default function SubscriptionDetails() {
   const [targetStatus, setTargetStatus] = useState<"active" | "suspended">("suspended")
   const [statusChangeNotes, setStatusChangeNotes] = useState("")
 
-  // Printable Zero-GST Invoice dialog
+  // Printable Invoice dialog & PDF state
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false)
+  const [isPrintingPdf, setIsPrintingPdf] = useState(false)
 
   const loadSubscription = useCallback(
     async (showLoading = true) => {
@@ -270,8 +272,25 @@ export default function SubscriptionDetails() {
     }
   }
 
-  const handlePrintInvoice = () => {
-    window.print()
+  const handlePrintInvoice = async () => {
+    if (!token || !subscription) return
+    const orderRef =
+      subscription.order_details?.order_no ||
+      subscription.order_no ||
+      subscription.invoice_no ||
+      subscription.payment_order_id
+    if (!orderRef) {
+      toast.error("No payment order reference found for this subscription.")
+      return
+    }
+    try {
+      setIsPrintingPdf(true)
+      await openSubscriptionInvoicePdfInNewTab(token, orderRef)
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to open invoice PDF.")
+    } finally {
+      setIsPrintingPdf(false)
+    }
   }
 
   // Badge helpers
@@ -488,11 +507,12 @@ export default function SubscriptionDetails() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsInvoiceOpen(true)}
+              onClick={handlePrintInvoice}
+              disabled={isPrintingPdf}
               className="h-9 gap-1.5 cursor-pointer border-primary/40 text-primary hover:bg-primary/10"
             >
               <Printer className="size-3.5" />
-              Print Zero-GST Invoice
+              {isPrintingPdf ? "Opening Invoice..." : "Print Invoice"}
             </Button>
           )}
 
@@ -782,7 +802,7 @@ export default function SubscriptionDetails() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
                     <Package className="size-4 text-primary" />
-                    Itemized Order & Add-ons Breakdown (Zero GST)
+                    Itemized Order &amp; Add-ons Breakdown
                   </CardTitle>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="font-mono text-xs">
@@ -866,12 +886,44 @@ export default function SubscriptionDetails() {
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Tax / GST</span>
-                    <span className="font-mono">₹0.00 (Zero GST)</span>
-                  </div>
+                  {orderDetails.tax_type === "intra_state" && Number(orderDetails.tax_amount || 0) > 0 ? (
+                    <>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>
+                          CGST ({Number(orderDetails.cgst_percentage || 0)}%)
+                          {orderDetails.billing_state_name ? ` — ${orderDetails.billing_state_name}` : ""}
+                        </span>
+                        <span className="font-mono">{formatCurrency(orderDetails.cgst_amount)}</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>
+                          SGST ({Number(orderDetails.sgst_percentage || 0)}%)
+                          {orderDetails.billing_state_name ? ` — ${orderDetails.billing_state_name}` : ""}
+                        </span>
+                        <span className="font-mono">{formatCurrency(orderDetails.sgst_amount)}</span>
+                      </div>
+                    </>
+                  ) : orderDetails.tax_type === "inter_state" && Number(orderDetails.tax_amount || 0) > 0 ? (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>
+                        IGST ({Number(orderDetails.igst_percentage || orderDetails.tax_percentage || 0)}%)
+                        {orderDetails.billing_state_name ? ` — ${orderDetails.billing_state_name}` : ""}
+                      </span>
+                      <span className="font-mono">{formatCurrency(orderDetails.igst_amount || orderDetails.tax_amount)}</span>
+                    </div>
+                  ) : Number(orderDetails.tax_amount || 0) > 0 ? (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>GST ({Number(orderDetails.tax_percentage || 0)}%)</span>
+                      <span className="font-mono">{formatCurrency(orderDetails.tax_amount)}</span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Tax / GST</span>
+                      <span className="font-mono">₹0.00</span>
+                    </div>
+                  )}
                   <div className="flex justify-between pt-2 border-t font-bold text-sm text-foreground">
-                    <span>Net Grand Total</span>
+                    <span>Grand Total</span>
                     <span className="font-mono text-emerald-600 dark:text-emerald-400">
                       {formatCurrency(orderDetails.grand_total)}
                     </span>

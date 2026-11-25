@@ -214,6 +214,17 @@ export interface OrderInvoiceDetails {
   subtotal_amount: number
   coupon_code?: string | null
   discount_amount: number
+  taxable_amount?: number
+  tax_type?: "none" | "intra_state" | "inter_state" | string
+  billing_state_id?: number | null
+  billing_state_name?: string | null
+  cgst_percentage?: number
+  cgst_amount?: number
+  sgst_percentage?: number
+  sgst_amount?: number
+  igst_percentage?: number
+  igst_amount?: number
+  tax_percentage?: number
   tax_amount: number
   grand_total: number
   currency: string

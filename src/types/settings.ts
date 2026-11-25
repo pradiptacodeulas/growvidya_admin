@@ -174,3 +174,49 @@ export interface FooterSetting {
 export interface UpdateFooterSettingPayload {
   footer_text: string
 }
+
+export interface GstSetting {
+  id: number
+  is_gst_enabled: 0 | 1
+  gst_percentage: number
+  cgst_percentage: number
+  sgst_percentage: number
+  igst_percentage: number
+  home_country_id: number | null
+  home_state_id: number | null
+  home_state_name: string
+  company_legal_name: string
+  company_gstin: string
+  company_address: string
+  company_phone: string
+  company_email: string
+  hsn_sac_code: string
+  updated_by?: number | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export interface UpdateGstSettingPayload {
+  is_gst_enabled: 0 | 1 | boolean
+  gst_percentage: number | string
+  home_country_id?: number | string | null
+  home_state_id?: number | string | null
+  home_state_name?: string
+  company_legal_name?: string
+  company_gstin?: string
+  company_address?: string
+  company_phone?: string
+  company_email?: string
+  hsn_sac_code?: string
+}
+
+export interface LocationCountry {
+  id: number
+  name: string
+}
+
+export interface LocationState {
+  id: number
+  name: string
+  country_id: number
+}

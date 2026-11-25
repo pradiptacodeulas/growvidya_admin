@@ -13,6 +13,10 @@ import type {
   PendingNotificationOrder,
   FooterSetting,
   UpdateFooterSettingPayload,
+  GstSetting,
+  UpdateGstSettingPayload,
+  LocationCountry,
+  LocationState,
 } from "@/types/settings"
 import type { PaginationMeta } from "@/types/pagination"
 
@@ -503,5 +507,70 @@ export async function updateFooterSettingApi(
   return handleResponse<FooterSetting>(
     response,
     "Failed to update footer setting"
+  )
+}
+
+// ==========================================
+// 5. GST & TAX INVOICE CONFIGURATION API
+// ==========================================
+
+export async function fetchGstSettingApi(
+  token: string
+): Promise<GstSetting | null> {
+  const response = await makeRequest(
+    "/settings/gst",
+    { method: "GET" },
+    token
+  )
+  return handleResponse<GstSetting | null>(
+    response,
+    "Failed to fetch GST settings"
+  )
+}
+
+export async function updateGstSettingApi(
+  token: string,
+  payload: UpdateGstSettingPayload
+): Promise<GstSetting> {
+  const response = await makeRequest(
+    "/settings/gst",
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+    token
+  )
+  return handleResponse<GstSetting>(
+    response,
+    "Failed to update GST settings"
+  )
+}
+
+export async function fetchCountriesApi(
+  token: string
+): Promise<LocationCountry[]> {
+  const response = await makeRequest(
+    "/locations/countries",
+    { method: "GET" },
+    token
+  )
+  return handleResponse<LocationCountry[]>(
+    response,
+    "Failed to fetch countries"
+  )
+}
+
+export async function fetchStatesByCountryApi(
+  token: string,
+  countryId: number | string
+): Promise<LocationState[]> {
+  const response = await makeRequest(
+    `/locations/states/${encodeURIComponent(String(countryId))}`,
+    { method: "GET" },
+    token
+  )
+  return handleResponse<LocationState[]>(
+    response,
+    "Failed to fetch states"
   )
 }

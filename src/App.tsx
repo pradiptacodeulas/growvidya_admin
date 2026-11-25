@@ -60,6 +60,7 @@ import SupportTicketDetails from "@/pages/SupportTicketDetails"
 import PaymentGatewaySettings from "@/pages/PaymentGatewaySettings"
 import EmailDeliverySettings from "@/pages/EmailDeliverySettings"
 import FooterSettings from "@/pages/FooterSettings"
+import GstSettings from "@/pages/GstSettings"
 import Profile from "@/pages/Profile"
 import EditProfile from "@/pages/EditProfile"
 import { Toaster } from "@/components/ui/sonner"
@@ -118,6 +119,9 @@ function SettingsRedirect() {
   }
   if (can(["footer_settings", "payment_gateway", "email_delivery", "email_settings"], "can_view")) {
     return <Navigate to="/settings/footer" replace />
+  }
+  if (can(["gst_settings", "payment_gateway", "email_delivery", "email_settings", "footer_settings"], "can_view")) {
+    return <Navigate to="/settings/gst" replace />
   }
   return <Navigate to={getFirstAccessibleRoute()} replace />
 }
@@ -290,6 +294,8 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
         return "Settings — Email Delivery"
       case "/settings/footer":
         return "Settings — Footer Configuration"
+      case "/settings/gst":
+        return "Settings — GST Configuration"
       default:
         return "Dashboard"
     }
@@ -769,6 +775,17 @@ function AppRoutes() {
                       action="can_view"
                     >
                       <FooterSettings />
+                    </RoutePermissionGuard>
+                  }
+                />
+                <Route
+                  path="/settings/gst"
+                  element={
+                    <RoutePermissionGuard
+                      module={["gst_settings", "payment_gateway", "email_delivery", "email_settings", "footer_settings"]}
+                      action="can_view"
+                    >
+                      <GstSettings />
                     </RoutePermissionGuard>
                   }
                 />

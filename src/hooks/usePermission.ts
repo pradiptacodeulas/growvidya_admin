@@ -128,6 +128,7 @@ const ROUTE_PRIORITY: Array<{ path: string; modules: string | string[] }> = [
   { path: "/settings/payment-gateway", modules: "payment_gateway" },
   { path: "/settings/email-delivery", modules: ["email_delivery", "email_settings"] },
   { path: "/settings/footer", modules: ["footer_settings", "payment_gateway", "email_delivery", "email_settings"] },
+  { path: "/settings/gst", modules: ["gst_settings", "payment_gateway", "email_delivery", "email_settings", "footer_settings"] },
 ]
 
 export function resolveFirstAccessibleRoute(

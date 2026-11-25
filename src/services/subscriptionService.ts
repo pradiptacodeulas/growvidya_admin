@@ -477,7 +477,7 @@ export async function manualAssignSubscriptionApi(
 }
 
 /**
- * Super Admin: Fetch Zero-GST Printable Invoice by Order No / Invoice No
+ * Super Admin: Fetch Printable Invoice by Order No / Invoice No
  */
 export async function fetchSubscriptionInvoiceApi(
   token: string,
@@ -491,6 +491,42 @@ export async function fetchSubscriptionInvoiceApi(
     }
   )
   return handleResponse<OrderInvoiceDetails>(response, "Failed to retrieve order invoice details.")
+}
+
+/**
+ * Super Admin: Open Backend-Generated Tax Invoice PDF in a Separate Browser Tab
+ */
+export async function openSubscriptionInvoicePdfInNewTab(
+  token: string,
+  orderNo: string | number
+): Promise<void> {
+  const cleanToken = token.startsWith("Bearer ") ? token.slice(7) : token
+  const response = await fetch(
+    `${API_BASE_URL}/subscriptions/orders/${encodeURIComponent(String(orderNo))}/invoice-pdf`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${cleanToken}`,
+      },
+    }
+  )
+
+  if (!response.ok) {
+    let errorMessage = `Failed to generate invoice PDF (status ${response.status})`
+    try {
+      const errJson = await response.json()
+      if (errJson.message) errorMessage = errJson.message
+    } catch {
+      // Ignore parse error
+    }
+    throw new Error(errorMessage)
+  }
+
+  const blob = await response.blob()
+  const pdfBlob = new Blob([blob], { type: "application/pdf" })
+  const blobUrl = URL.createObjectURL(pdfBlob)
+  window.open(blobUrl, "_blank", "noopener,noreferrer")
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
 }
 
 /**
